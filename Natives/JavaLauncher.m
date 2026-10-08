@@ -175,7 +175,7 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
             defaultJRETag = @"1_17_newer";
         }
 
-        // Use LWJGL 3.4.1 for 26.1+, 3.3.3 for 1.21.11-.
+        // Use LWJGL 3.4.3 for 26.1+, 3.3.3 for 1.21.11-.
        // Prefer launchTarget[@"lwjglVersion"] over guessing from the Minecraft version ID,
       // which is unreliable for snapshots, modpacks, or custom JSONs.
 
@@ -185,14 +185,14 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
             int lwjglMajor = lwjglVersion.count > 0 ? [lwjglVersion[0] intValue] : 0;
             int lwjglMinor = lwjglVersion.count > 1 ? [lwjglVersion[1] intValue] : 0;
             if (lwjglMajor > 3 || (lwjglMajor == 3 && lwjglMinor >= 4)) {
-                lwjglFolder = @"lwjgl-3.4.1";
+                lwjglFolder = @"lwjgl-3.4.3";
             }
         } else {
             // Fallback: no lwjglVersion recorded (unexpected) - guess from the
             // Minecraft version id like before.
             int mcMajorVersion = [launchTarget[@"id"] intValue];
             if (mcMajorVersion >= 26) {
-                lwjglFolder = @"lwjgl-3.4.1";
+                lwjglFolder = @"lwjgl-3.4.3";
             }
         }
         NSLog(@"[JavaLauncher] Using LWJGL from %@", lwjglFolder);
@@ -266,7 +266,7 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     }
     margv[++margc] = "-Xms128M";
     margv[++margc] = [NSString stringWithFormat:@"-Xmx%dM", allocmem].UTF8String;
-    NSString *lwjglNativesFolder = [lwjglFolder isEqualToString:@"lwjgl-3.4.1"] ? @"lwjgl34" : @"lwjgl33";
+    NSString *lwjglNativesFolder = [lwjglFolder isEqualToString:@"lwjgl-3.4.3"] ? @"lwjgl34" : @"lwjgl33";
     margv[++margc] = [NSString stringWithFormat:@"-Djava.library.path=%@/Frameworks:%@/Frameworks/%@", NSBundle.mainBundle.bundlePath, NSBundle.mainBundle.bundlePath, lwjglNativesFolder].UTF8String;
     margv[++margc] = [NSString stringWithFormat:@"-Duser.dir=%@", gameDir].UTF8String;
     margv[++margc] = [NSString stringWithFormat:@"-Duser.home=%s", getenv("POJAV_HOME")].UTF8String;
