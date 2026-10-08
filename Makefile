@@ -313,6 +313,14 @@ jre: native
 
 dep_mg:
 	echo '[Amethyst v$(VERSION)] dep_mg - start'
+	# Apply Amethyst's MobileGlues patches (skipped if already applied)
+	for patch in $(SOURCEDIR)/Natives/patches/MobileGlues/*.patch; do \
+		if git -C $(SOURCEDIR)/Natives/external/MobileGlues apply --reverse --check "$$patch" 2>/dev/null; then \
+			echo "Already applied: $$patch"; \
+		else \
+			git -C $(SOURCEDIR)/Natives/external/MobileGlues apply "$$patch" || exit 1; \
+		fi; \
+	done
 	mkdir -p $(WORKINGDIR)/mobileglues
 	cd $(WORKINGDIR)/mobileglues && cmake \
 		-DMACOS="1" \

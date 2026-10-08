@@ -1,0 +1,85 @@
+diff --git a/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp b/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp
+index 3f1cecd..e7a6782 100644
+--- a/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp
++++ b/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp
+@@ -227,7 +227,13 @@ std::string process_uniform_declarations(const std::string& glslCode) {
+     result.reserve(glslCode.length());
+ 
+     while (scan_pos < length) {
+-        if (glslCode.compare(scan_pos, 7, "uniform") == 0) {
++        // Only the keyword, not "uniform" inside an identifier: Minecraft 26.3's
++        // SPIRV-Cross output names blocks like _uniform_instance_00_00.
++        const bool is_uniform_keyword =
++            glslCode.compare(scan_pos, 7, "uniform") == 0 &&
++            (scan_pos == 0 || !(std::isalnum((unsigned char)glslCode[scan_pos - 1]) || glslCode[scan_pos - 1] == '_')) &&
++            (scan_pos + 7 >= length || !(std::isalnum((unsigned char)glslCode[scan_pos + 7]) || glslCode[scan_pos + 7] == '_'));
++        if (is_uniform_keyword) {
+             if (scan_pos > chunk_start) {
+                 result.append(glslCode, chunk_start, scan_pos - chunk_start);
+             }
+@@ -324,6 +330,46 @@ std::string processOutColorLocations(const std::string& glslCode) {
+     return std::regex_replace(glslCode, pattern, replacement);
+ }
+ 
++// GLSL ES 3.00 only allows constant indices into fragment output arrays, but
++// desktop GLSL (and Minecraft 26.3's OIT shaders) index them in loops. Turn each
++// `out T name[N]` into N scalar outputs fed from a plain array of the same name,
++// copied over after the original main() returns.
++std::string splitFragmentOutputArrays(const std::string& essl) {
++    static const std::regex outArray(
++        R"(layout\s*\(\s*location\s*=\s*(\d+)\s*\)\s*out\s+((?:highp|mediump|lowp)\s+)?(\w+)\s+(\w+)\s*\[\s*(\d+)\s*\]\s*;)");
++    std::string result;
++    std::string copies;
++    auto begin = std::sregex_iterator(essl.begin(), essl.end(), outArray);
++    auto end = std::sregex_iterator();
++    if (begin == end) return essl;
++
++    size_t last = 0;
++    for (auto it = begin; it != end; ++it) {
++        const std::smatch& m = *it;
++        int location = std::stoi(m[1].str());
++        std::string precision = m[2].str();
++        std::string type = m[3].str();
++        std::string name = m[4].str();
++        int count = std::stoi(m[5].str());
++
++        result.append(essl, last, m.position(0) - last);
++        for (int i = 0; i < count; i++) {
++            result += "layout(location = " + std::to_string(location + i) + ") out " + precision + type + " " + name +
++                      "_mgout" + std::to_string(i) + ";\n";
++            copies += "    " + name + "_mgout" + std::to_string(i) + " = " + name + "[" + std::to_string(i) + "];\n";
++        }
++        result += precision + type + " " + name + "[" + std::to_string(count) + "];";
++        last = m.position(0) + m.length(0);
++    }
++    result.append(essl, last, std::string::npos);
++
++    static const std::regex mainDecl(R"(\bvoid\s+main\s*\(\s*(void)?\s*\))");
++    if (!std::regex_search(result, mainDecl)) return essl;
++    result = std::regex_replace(result, mainDecl, "void mg_split_outputs_main()", std::regex_constants::format_first_only);
++    result += "\nvoid main()\n{\n    mg_split_outputs_main();\n" + copies + "}\n";
++    return result;
++}
++
+ bool checkIfAtomicCounterBufferEmulated(const std::string& glslCode) {
+     return glslCode.find(atomicCounterEmulatedWatermark) != std::string::npos;
+ }
+@@ -332,7 +378,7 @@ std::string GLSLtoGLSLES(const char* glsl_code, GLenum glsl_type, uint essl_vers
+                          int& return_code) {
+     std::string sha256_string(glsl_code);
+     sha256_string += "\n//" + std::to_string(MAJOR) + "." + std::to_string(MINOR) + "." + std::to_string(REVISION) +
+-                     "|" + std::to_string(essl_version);
++                     "|" + std::to_string(essl_version) + "|amethyst-1";  // bump when the translation changes
+     const char* cachedESSL = Cache::get_instance().get(sha256_string.c_str());
+     if (cachedESSL) {
+         LOG_D("GLSL Hit Cache:\n%s\n-->\n%s", glsl_code, cachedESSL)
+@@ -885,6 +931,9 @@ std::string GLSLtoGLSLES_2(const char* glsl_code, GLenum glsl_type, uint essl_ve
+     }
+     essl = processOutColorLocations(essl);
+     essl = forceSupporterOutput(essl);
++    if (glsl_type == GL_FRAGMENT_SHADER) {
++        essl = splitFragmentOutputArrays(essl);
++    }
+ 
+     LOG_D("Originally GLSL to GLSL ES Complete: \n%s", essl.c_str())
+     return_code = errc;
