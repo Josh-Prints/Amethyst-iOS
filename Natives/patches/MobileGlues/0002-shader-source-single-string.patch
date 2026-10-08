@@ -1,0 +1,17 @@
+diff --git a/MobileGlues-cpp/gl/shader.cpp b/MobileGlues-cpp/gl/shader.cpp
+index 1a2d934..0e3613d 100644
+--- a/MobileGlues-cpp/gl/shader.cpp
++++ b/MobileGlues-cpp/gl/shader.cpp
+@@ -102,8 +102,11 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
+     if (!essl_src.empty()) {
+         shaderInfo.id = shader;
+         shaderInfo.converted = essl_src;
++        // All source strings were merged into essl_src above, so hand the driver
++        // exactly one string. Passing the caller's count made it read past `s`
++        // when a game supplied several strings (Minecraft 26.2 does).
+         const char* s[] = {essl_src.c_str()};
+-        GLES.glShaderSource(shader, count, s, nullptr);
++        GLES.glShaderSource(shader, 1, s, nullptr);
+         if (hardware->emulate_texture_buffer)
+             shader_map_is_sampler_buffer_emulated[shader] = is_sampler_buffer_emulated;
+     } else
