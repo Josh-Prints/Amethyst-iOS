@@ -43,6 +43,10 @@ jobs:
           test -z "$(git diff --name-only --diff-filter=U)"
           git commit -qm "Merge upstream 3.4.3"
           sed -i '' -e 's#release/3.4.1#release/3.4.3#' -e 's#LIBFFI_VERSION=3.5.2#LIBFFI_VERSION=3.8.0#' ci_build_ios.bash
+          # libffi 3.8.0 renamed its platforms (ios_simulator_arm64_platform etc. also
+          # match the old "64_platform" keep-filter), so only keep the arm64 device build.
+          sed -i '' 's#/\\(64_platform\\)/!#/ios_device_arm64_platform/!#' ci_build_ios.bash
+          grep -n 'ios_device_arm64_platform' ci_build_ios.bash
           git log --oneline -1
 
       - name: Build
