@@ -75,7 +75,9 @@
             library[@"downloads"][@"classifiers"] != nil ||
             library[@"natives"] != nil ||
             // Exclude LWJGL libraries
-            [library[@"name"] hasPrefix:@"org.lwjgl"]
+            [library[@"name"] hasPrefix:@"org.lwjgl"] ||
+            // macOS-only ObjC bridge; inert stubs ship in the bundled LWJGL jar
+            [library[@"name"] hasPrefix:@"ca.weblite:java-objc-bridge"]
         );
 
         NSString *versionStr = [library[@"name"] componentsSeparatedByString:@":"][2];

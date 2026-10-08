@@ -12,10 +12,15 @@
 #import "UIButton+AFNetworking.h"
 #import "UIImageView+AFNetworking.h"
 #import "UIKit+hook.h"
+#import "config.h"
 #import "ios_uikit_bridge.h"
 #import "utils.h"
 
 #include <dlfcn.h>
+
+static NSString *AmethystBuildVersion(void) {
+    return NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"];
+}
 
 @implementation LauncherMenuCustomItem
 
@@ -114,6 +119,14 @@
     }
     
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+
+    // Show the build right in the sidebar so a fresh install is obvious at a glance
+    UILabel *buildLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 0, 44)];
+    buildLabel.text = [NSString stringWithFormat:@"Build %@ · %s", AmethystBuildVersion(), CONFIG_COMMIT];
+    buildLabel.textAlignment = NSTextAlignmentCenter;
+    buildLabel.font = [UIFont monospacedDigitSystemFontOfSize:13 weight:UIFontWeightSemibold];
+    buildLabel.textColor = UIColor.systemPurpleColor;
+    self.tableView.tableFooterView = buildLabel;
     
     self.navigationController.toolbarHidden = NO;
     UIActivityIndicatorViewStyle indicatorStyle = UIActivityIndicatorViewStyleMedium;
@@ -162,6 +175,27 @@
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self restoreHighlightedSelection];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self announceUpdateIfNeeded];
+}
+
+// One-time popup the first time a new build is opened.
+- (void)announceUpdateIfNeeded {
+    NSString *build = [NSString stringWithFormat:@"%@ (%s)", AmethystBuildVersion(), CONFIG_COMMIT];
+    NSString *key = @"amethyst.lastSeenBuild";
+    NSString *lastSeen = [NSUserDefaults.standardUserDefaults stringForKey:key];
+    if ([build isEqualToString:lastSeen] || self.presentedViewController) return;
+    [NSUserDefaults.standardUserDefaults setObject:build forKey:key];
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:[NSString stringWithFormat:@"Updated to build %@", AmethystBuildVersion()]
+        message:[NSString stringWithFormat:@"Commit %s on %s%@", CONFIG_COMMIT, CONFIG_BRANCH,
+            lastSeen ? [NSString stringWithFormat:@"\nPrevious: %@", lastSeen] : @""]
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:localize(@"OK", nil) style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (UIBarButtonItem *)drawAccountButton {

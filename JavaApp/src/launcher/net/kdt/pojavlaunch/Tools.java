@@ -310,6 +310,8 @@ public final class Tools {
             if (libItem.name.startsWith("com.mojang:text2speech") ||
                 //libItem.name.startsWith("net.java.jinput") ||
                 libItem.name.startsWith("net.java.dev.jna:platform:") ||
+                // Replaced by inert stubs in the bundled LWJGL jar (macOS AppKit only)
+                libItem.name.startsWith("ca.weblite:java-objc-bridge") ||
                 libItem.name.startsWith("org.lwjgl") ||
                 libItem.name.startsWith("tv.twitch")) {
                     libItem._skip = true;

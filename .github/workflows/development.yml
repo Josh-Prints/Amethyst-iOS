@@ -107,25 +107,25 @@ jobs:
       - name: Upload regular ipa
         uses: actions/upload-artifact@main
         with:
-          name: org.angelauramc.amethyst-${{ matrix.platform_name }}.ipa
+          name: org.angelauramc.amethyst-${{ matrix.platform_name }}-1.0.${{ github.run_number }}.ipa
           path: artifacts/org.angelauramc.amethyst-*-${{ matrix.platform_name }}.ipa
 
       - name: Upload regular tipa
         uses: actions/upload-artifact@main
         with:
-          name: org.angelauramc.amethyst-${{ matrix.platform_name }}-trollstore.tipa
+          name: org.angelauramc.amethyst-${{ matrix.platform_name }}-trollstore-1.0.${{ github.run_number }}.tipa
           path: artifacts/org.angelauramc.amethyst-*-${{ matrix.platform_name }}-trollstore.tipa
 
       - name: Upload slimmed ipa
         uses: actions/upload-artifact@main
         with:
-          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}.ipa
+          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}-1.0.${{ github.run_number }}.ipa
           path: artifacts/org.angelauramc.amethyst.slimmed-*-${{ matrix.platform_name }}.ipa
 
       - name: Upload slimmed tipa
         uses: actions/upload-artifact@main
         with:
-          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}-trollstore.tipa
+          name: org.angelauramc.amethyst.slimmed-${{ matrix.platform_name }}-trollstore-1.0.${{ github.run_number }}.tipa
           path: artifacts/org.angelauramc.amethyst.slimmed-*-${{ matrix.platform_name }}-trollstore.tipa
 
       - name: Upload PojavLauncher.dSYM

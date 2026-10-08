@@ -10,6 +10,12 @@ WORKINGDIR  := $(SOURCEDIR)/Natives/build
 DETECTPLAT  := $(shell uname -s)
 DETECTARCH  := $(shell uname -m)
 VERSION     := 1.0
+# CI passes the workflow run number so every build gets its own version
+# (shown in the app and in the .ipa file name).
+BUILD_NUMBER ?= $(GITHUB_RUN_NUMBER)
+ifneq (,$(BUILD_NUMBER))
+VERSION     := 1.0.$(BUILD_NUMBER)
+endif
 BRANCH      := $(shell git branch --show-current)
 COMMIT      := $(shell git log --oneline | sed '2,10000000d' | cut -b 1-7)
 PLATFORM    ?= 2
@@ -353,6 +359,8 @@ payload: native dep_mg java jre assets
 	mv $(WORKINGDIR)/AngelAuraAmethyst.app/libs/lwjgl-3.4.3.jar $(WORKINGDIR)/AngelAuraAmethyst.app/libs/lwjgl-3.4.3/lwjgl.jar || exit 1
 	cp -R $(SOURCEDIR)/JavaApp/libs/caciocavallo/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo || exit 1
 	cp -R $(SOURCEDIR)/JavaApp/libs/caciocavallo17/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo17 || exit 1
+	plutil -replace CFBundleShortVersionString -string '$(VERSION)' $(WORKINGDIR)/AngelAuraAmethyst.app/Info.plist
+	plutil -replace CFBundleVersion -string '$(VERSION)' $(WORKINGDIR)/AngelAuraAmethyst.app/Info.plist
 	$(call METHOD_DIRCHECK,$(OUTPUTDIR)/Payload)
 	cp -R $(WORKINGDIR)/AngelAuraAmethyst.app $(OUTPUTDIR)/Payload
 	if [ '$(SLIMMED_ONLY)' != '1' ]; then \
