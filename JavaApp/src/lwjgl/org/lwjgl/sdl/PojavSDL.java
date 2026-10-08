@@ -10,8 +10,6 @@ import java.util.Map;
 
 import org.lwjgl.glfw.CallbackBridge;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.opengl.GL;
-import org.lwjgl.system.Configuration;
 
 import static org.lwjgl.system.MemoryUtil.*;
 
@@ -73,7 +71,6 @@ public final class PojavSDL {
     static long mainWindow;
     static long glContext;
     private static boolean initialized;
-    private static String initialGLLibName;
     private static final long startTime = System.nanoTime();
 
     private static final ArrayDeque<Event> queue = new ArrayDeque<>();
@@ -91,7 +88,6 @@ public final class PojavSDL {
 
     static synchronized boolean init() {
         if (initialized) return true;
-        initialGLLibName = System.getProperty("org.lwjgl.opengl.libname");
         if (!GLFW.glfwInit()) {
             lastError = "pojavInit failed";
             return false;
@@ -160,26 +156,8 @@ public final class PojavSDL {
                 return 0;
             }
             GLFW.glfwShowWindow(glContext);
-            reloadGLIfRendererChanged();
         }
         return glContext;
-    }
-
-    // MC 26.3 loads the GL library during startup, before it asks for a 3.3
-    // context. With the renderer on "auto" that is the launcher's preset; the
-    // version hint then switches the renderer, so reload GL from the new library.
-    private static void reloadGLIfRendererChanged() {
-        String libname = System.getProperty("org.lwjgl.opengl.libname");
-        if (libname == null || libname.equals(initialGLLibName)) return;
-        try {
-            Configuration.OPENGL_LIBRARY_NAME.set(libname);
-            GL.destroy();
-            GL.create();
-            System.out.println("[PojavSDL] Reloaded OpenGL from " + libname + " (was " + initialGLLibName + ")");
-        } catch (Throwable t) {
-            System.err.println("[PojavSDL] Failed to reload OpenGL from " + libname);
-            t.printStackTrace();
-        }
     }
 
     static boolean makeCurrent(long window, long context) {

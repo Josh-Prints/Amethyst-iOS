@@ -1,0 +1,53 @@
+diff --git a/MobileGlues-cpp/gl/shader.cpp b/MobileGlues-cpp/gl/shader.cpp
+index 0e3613d..1e0461c 100644
+--- a/MobileGlues-cpp/gl/shader.cpp
++++ b/MobileGlues-cpp/gl/shader.cpp
+@@ -6,6 +6,8 @@
+ // End of Source File Header
+ 
+ #include <cctype>
++#include <dlfcn.h>
++#include <cstdio>
+ #include "shader.h"
+ 
+ #include <GL/gl.h>
+@@ -114,9 +116,39 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
+     CHECK_GL_ERROR
+ }
+ 
++// Amethyst diagnostics: print the GLSL ES we produced and the source ANGLE
++// translated it to for a few Minecraft 26.3 world shaders, so a device log shows
++// exactly what the Metal compiler receives.
++typedef void (*PFN_GetTranslatedShaderSourceANGLE)(GLuint, GLsizei, GLsizei*, GLchar*);
++static void amethyst_dump_shader(GLuint shader) {
++    static int dumped = 0;
++    if (dumped >= 3) return;
++    GLint len = 0;
++    GLES.glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &len);
++    if (len <= 0) return;
++    std::string src(len, '\0');
++    GLES.glGetShaderSource(shader, len, nullptr, &src[0]);
++    if (src.find("FogSkyEnd") == std::string::npos && src.find("sampleNearest") == std::string::npos) return;
++    dumped++;
++    printf("[AmethystShaderDump] ESSL of shader %u:\n%s\n[AmethystShaderDump] end ESSL\n", shader, src.c_str());
++    static auto translated = (PFN_GetTranslatedShaderSourceANGLE)dlsym(RTLD_DEFAULT, "glGetTranslatedShaderSourceANGLE");
++    if (!translated) {
++        printf("[AmethystShaderDump] glGetTranslatedShaderSourceANGLE unavailable\n");
++        return;
++    }
++    GLint tlen = 0;
++    GLES.glGetShaderiv(shader, 0x93A0 /* GL_TRANSLATED_SHADER_SOURCE_LENGTH_ANGLE */, &tlen);
++    if (tlen <= 0) tlen = 1 << 16;
++    std::string out(tlen, '\0');
++    translated(shader, tlen, nullptr, &out[0]);
++    printf("[AmethystShaderDump] translated source of shader %u:\n%s\n[AmethystShaderDump] end translated\n", shader, out.c_str());
++    fflush(stdout);
++}
++
+ void glGetShaderiv(GLuint shader, GLenum pname, GLint* params) {
+     LOG()
+     GLES.glGetShaderiv(shader, pname, params);
++    if (pname == GL_COMPILE_STATUS) amethyst_dump_shader(shader);
+     if (global_settings.ignore_error >= IgnoreErrorLevel::Partial && pname == GL_COMPILE_STATUS && !*params) {
+         GLchar infoLog[512];
+         GLES.glGetShaderInfoLog(shader, 512, nullptr, infoLog);

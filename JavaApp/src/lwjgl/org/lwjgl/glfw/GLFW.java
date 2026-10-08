@@ -522,6 +522,8 @@ public class GLFW
     private static ArrayMap<Long, GLFWWindowProperties> mGLFWWindowMap;
     public static final ByteBuffer keyDownBuffer = ByteBuffer.allocateDirect(317);
     public static long mainContext = 0;
+    // GL library LWJGL was pointed at before any context hint could switch the "auto" renderer.
+    private static String loadedGLLibName = System.getProperty("org.lwjgl.opengl.libname");
 
     static {
         try {
@@ -1041,6 +1043,7 @@ public class GLFW
     public static long glfwCreateWindow(int width, int height, CharSequence title, long monitor, long share) {
         // Create an ACTUAL EGL context
         long ptr = nglfwCreateContext(share);
+        reloadGLIfRendererChanged();
         //nativeEglMakeCurrent(ptr);
         GLFWWindowProperties win = new GLFWWindowProperties();
         // win.width = width;
@@ -1062,6 +1065,26 @@ public class GLFW
         mainContext = ptr;
         return ptr;
         //Return our context
+    }
+
+    // MC 26.2+ loads OpenGL during startup (NativeLibrariesBootstrap), before it hints
+    // a 3.x context. On the "auto" renderer that hint switches org.lwjgl.opengl.libname
+    // to MobileGlues, but LWJGL would keep the GL entry points of the preset library.
+    private static void reloadGLIfRendererChanged() {
+        String libname = System.getProperty("org.lwjgl.opengl.libname");
+        if (libname == null || libname.equals(loadedGLLibName)) return;
+        String previous = loadedGLLibName;
+        loadedGLLibName = libname;
+        try {
+            Configuration.OPENGL_LIBRARY_NAME.set(libname);
+            if (org.lwjgl.opengl.GL.getFunctionProvider() == null) return;
+            org.lwjgl.opengl.GL.destroy();
+            org.lwjgl.opengl.GL.create();
+            System.out.println("[GLFW] Reloaded OpenGL from " + libname + " (was " + previous + ")");
+        } catch (Throwable t) {
+            System.err.println("[GLFW] Failed to reload OpenGL from " + libname);
+            t.printStackTrace();
+        }
     }
 
     public static void glfwDestroyWindow(long window) {
