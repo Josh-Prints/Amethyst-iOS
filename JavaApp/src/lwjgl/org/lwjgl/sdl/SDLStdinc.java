@@ -27,6 +27,6 @@ public class SDLStdinc {
     }
 
     public static void SDL_free(PointerBuffer mem) {
-        memFree(mem);
+        if (mem != null) nmemFree(mem.address());
     }
 }

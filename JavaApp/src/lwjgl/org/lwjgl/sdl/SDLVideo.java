@@ -64,7 +64,7 @@ public class SDLVideo {
     }
 
     public static boolean SDL_GetClosestFullscreenDisplayMode(int displayID, int w, int h, float refresh_rate, boolean include_high_density_modes, SDL_DisplayMode closest) {
-        memCopy(PojavSDL.displayMode().address(), closest.address(), SDL_DisplayMode.SIZEOF);
+        memCopy(PojavSDL.displayMode().address(), closest.address(), (long) SDL_DisplayMode.SIZEOF);
         return true;
     }
 

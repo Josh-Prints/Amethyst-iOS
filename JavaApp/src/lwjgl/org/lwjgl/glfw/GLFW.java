@@ -850,7 +850,8 @@ public class GLFW
             mGLFWInitialTime = (double) System.nanoTime();
             long __functionAddress = Functions.Init;
             boolean isCalledFromLWJGLX = new Throwable().getStackTrace()[1].getClassName().equals("org.lwjgl.Sys");
-            isGLFWReady = invokeI(!isCalledFromLWJGLX, __functionAddress) != 0;
+            // invokeI(boolean, long) was dropped from LWJGL 3.4.3's JNI; (int, long) exists in every bundled version.
+            isGLFWReady = invokeI(isCalledFromLWJGLX ? 0 : 1, __functionAddress) != 0;
         }
         return isGLFWReady;
     }
