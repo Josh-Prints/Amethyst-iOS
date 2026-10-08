@@ -42,7 +42,7 @@ jobs:
           git add -A
           test -z "$(git diff --name-only --diff-filter=U)"
           git commit -qm "Merge upstream 3.4.3"
-          sed -i '' 's#release/3.4.1#release/3.4.3#' ci_build_ios.bash
+          sed -i '' -e 's#release/3.4.1#release/3.4.3#' -e 's#LIBFFI_VERSION=3.5.2#LIBFFI_VERSION=3.8.0#' ci_build_ios.bash
           git log --oneline -1
 
       - name: Build
