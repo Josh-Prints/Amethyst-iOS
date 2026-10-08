@@ -1,0 +1,57 @@
+name: Build LWJGL 3.4.3 (iOS)
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: |
+            8
+            25
+
+      - name: Install dependencies
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install ant autoconf automake libtool
+
+      - name: Fetch AngelAuraMC fork and merge upstream 3.4.3
+        run: |
+          git config --global user.email ci@example.com
+          git config --global user.name ci
+          git clone --filter=blob:none https://github.com/AngelAuraMC/lwjgl3 lwjgl3
+          cd lwjgl3
+          git checkout -B build origin/wip/rebase_3.4.1
+          git remote add up https://github.com/LWJGL/lwjgl3
+          git fetch up tag 3.4.3 --no-tags
+          git merge --no-commit --no-ff FETCH_HEAD || true
+          # Known conflicts: keep the fork's disabled lwjgl-unsafe block, take upstream miniz.
+          git checkout --theirs modules/lwjgl/core/src/main/c/dependencies/miniz/miniz.c
+          python3 - <<'PY'
+          import re
+          s = open('build.xml').read()
+          pat = re.compile(r'<<<<<<< [^\n]*\n(.*?)=======\n.*?>>>>>>> [^\n]*\n', re.S)
+          assert len(pat.findall(s)) == 1
+          open('build.xml', 'w').write(pat.sub(lambda m: m.group(1), s))
+          PY
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git commit -qm "Merge upstream 3.4.3"
+          sed -i 's#release/3.4.1#release/3.4.3#' ci_build_ios.bash
+          git log --oneline -1
+
+      - name: Build
+        working-directory: lwjgl3
+        run: |
+          export JAVA8_HOME=$JAVA_HOME_8_${{ runner.arch }}
+          bash ci_build_ios.bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lwjgl3-ios-modules
+          path: lwjgl3/bin/RELEASE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lwjgl3-ios-natives
+          path: lwjgl3/bin/out
