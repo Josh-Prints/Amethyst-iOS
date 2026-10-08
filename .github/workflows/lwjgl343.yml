@@ -1,6 +1,10 @@
 name: Build LWJGL 3.4.3 (iOS)
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/lwjgl-343]
+    paths: ['.github/workflows/lwjgl343.yml']
 
 jobs:
   build:
