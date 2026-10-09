@@ -1,8 +1,8 @@
 diff --git a/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp b/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp
-index c7eee88..a2d135a 100644
+index 3f1cecd..e7a6782 100644
 --- a/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp
 +++ b/MobileGlues-cpp/gl/glsl/glsl_for_es.cpp
-@@ -249,7 +249,13 @@ std::string process_uniform_declarations(const std::string& glslCode) {
+@@ -227,7 +227,13 @@ std::string process_uniform_declarations(const std::string& glslCode) {
      result.reserve(glslCode.length());
  
      while (scan_pos < length) {
@@ -17,7 +17,7 @@ index c7eee88..a2d135a 100644
              if (scan_pos > chunk_start) {
                  result.append(glslCode, chunk_start, scan_pos - chunk_start);
              }
-@@ -346,11 +352,51 @@ std::string processOutColorLocations(const std::string& glslCode) {
+@@ -324,6 +330,46 @@ std::string processOutColorLocations(const std::string& glslCode) {
      return std::regex_replace(glslCode, pattern, replacement);
  }
  
@@ -61,16 +61,19 @@ index c7eee88..a2d135a 100644
 +    return result;
 +}
 +
- std::string GLSLtoGLSLES(const char* glsl_code, GLenum glsl_type, uint essl_version, uint glsl_version,
+ bool checkIfAtomicCounterBufferEmulated(const std::string& glslCode) {
+     return glslCode.find(atomicCounterEmulatedWatermark) != std::string::npos;
+ }
+@@ -332,7 +378,7 @@ std::string GLSLtoGLSLES(const char* glsl_code, GLenum glsl_type, uint essl_vers
                           int& return_code) {
      std::string sha256_string(glsl_code);
      sha256_string += "\n//" + std::to_string(MAJOR) + "." + std::to_string(MINOR) + "." + std::to_string(REVISION) +
 -                     "|" + std::to_string(essl_version);
-+                     "|" + std::to_string(essl_version) + "|amethyst-2";  // bump when the translation changes
++                     "|" + std::to_string(essl_version) + "|amethyst-1";  // bump when the translation changes
      const char* cachedESSL = Cache::get_instance().get(sha256_string.c_str());
      if (cachedESSL) {
          LOG_D("GLSL Hit Cache:\n%s\n-->\n%s", glsl_code, cachedESSL)
-@@ -869,6 +915,9 @@ std::string GLSLtoGLSLES_2(const char* glsl_code, GLenum glsl_type, uint essl_ve
+@@ -885,6 +931,9 @@ std::string GLSLtoGLSLES_2(const char* glsl_code, GLenum glsl_type, uint essl_ve
      }
      essl = processOutColorLocations(essl);
      essl = forceSupporterOutput(essl);

@@ -1,5 +1,3 @@
-diff --git a/MobileGlues-cpp/gl/shader.cpp b/MobileGlues-cpp/gl/shader.cpp
-index 12c66a0..5a1686b 100644
 --- a/MobileGlues-cpp/gl/shader.cpp
 +++ b/MobileGlues-cpp/gl/shader.cpp
 @@ -6,6 +6,8 @@
@@ -11,7 +9,7 @@ index 12c66a0..5a1686b 100644
  #include "shader.h"
  
  #include <GL/gl.h>
-@@ -74,6 +76,17 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
+@@ -74,6 +76,17 @@
          }
      }
  
@@ -29,7 +27,7 @@ index 12c66a0..5a1686b 100644
      bool is_sampler_buffer_emulated = hardware->emulate_texture_buffer && check_if_sampler_buffer_used(glsl_src);
  
      if (is_direct_shader(glsl_src.c_str())) {
-@@ -110,9 +123,39 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
+@@ -114,9 +127,39 @@
      CHECK_GL_ERROR
  }
  

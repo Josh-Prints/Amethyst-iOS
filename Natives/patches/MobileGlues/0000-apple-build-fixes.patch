@@ -1,8 +1,8 @@
 diff --git a/MobileGlues-cpp/CMakeLists.txt b/MobileGlues-cpp/CMakeLists.txt
-index 0426186..df55cc6 100644
+index 4209b64..b1bc2b9 100644
 --- a/MobileGlues-cpp/CMakeLists.txt
 +++ b/MobileGlues-cpp/CMakeLists.txt
-@@ -25,11 +25,24 @@ set(SPIRV_CROSS_CLI            OFF CACHE BOOL "Disable CLI binary" FORCE)
+@@ -24,11 +24,24 @@ set(SPIRV_CROSS_CLI            OFF CACHE BOOL "Disable CLI binary" FORCE)
  set(SPIRV_CROSS_STATIC         ON  CACHE BOOL "Prefer static libs" FORCE)
  set(SPIRV_CROSS_ENABLE_UTIL    OFF CACHE BOOL "Disable util" FORCE)
  
@@ -28,16 +28,7 @@ index 0426186..df55cc6 100644
      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w -g -std=gnu99 -funwind-tables -fvisibility=hidden")
      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++")
  else()
-@@ -138,7 +151,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
-     spirv-cross-c
- )
- 
--if (NOT MSVC)
-+if (NOT MSVC AND NOT APPLE)  # ld64 has no -Bsymbolic-functions; two-level namespaces already bind internally
-     # Calls between this library's own translation units must land in this
-     # library. Without this, an internal call to an exported gl* symbol goes
-     # through a preemptible PLT slot, and in an Android app process the system
-@@ -182,3 +195,9 @@ if (PROFILING)
+@@ -157,3 +170,9 @@ if (PROFILING)
      target_link_libraries(${CMAKE_PROJECT_NAME} perfetto ${CMAKE_THREAD_LIBS_INIT})
      target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC PROFILING=1)
  endif()
@@ -47,74 +38,3 @@ index 0426186..df55cc6 100644
 +    # out of the export table for the same reason as above.
 +    set_source_files_properties(gl/glsl/glsl_for_es.cpp PROPERTIES COMPILE_OPTIONS "-fvisibility=hidden")
 +endif()
-diff --git a/MobileGlues-cpp/egl/trace.h b/MobileGlues-cpp/egl/trace.h
-index 61cf26f..4768f48 100644
---- a/MobileGlues-cpp/egl/trace.h
-+++ b/MobileGlues-cpp/egl/trace.h
-@@ -10,8 +10,12 @@
- 
- #include "../gl/log.h"
- #include <EGL/egl.h>
--#include <sys/syscall.h>
- #include <unistd.h>
-+#if defined(__APPLE__)
-+#include <pthread.h>
-+#else
-+#include <sys/syscall.h>
-+#endif
- 
- // Tracing for the EGL layer.
- //
-@@ -35,7 +39,13 @@
- // A thread id, via the syscall rather than gettid(), which bionic only exposes as
- // a real symbol from API 30 and this library targets 21.
- static inline int mg_egl_tid(void) {
-+#if defined(__APPLE__)
-+    uint64_t tid = 0;
-+    pthread_threadid_np(nullptr, &tid);
-+    return (int)tid;
-+#else
-     return (int)syscall(__NR_gettid);
-+#endif
- }
- 
- #if MG_EGL_TRACE
-diff --git a/MobileGlues-cpp/gl/framebuffer.cpp b/MobileGlues-cpp/gl/framebuffer.cpp
-index cb2585a..9a4453b 100644
---- a/MobileGlues-cpp/gl/framebuffer.cpp
-+++ b/MobileGlues-cpp/gl/framebuffer.cpp
-@@ -346,6 +346,7 @@ void restore_home_attachments(framebuffer_t& fbo) {
- // defines, and moving them here quietly dropped three of the 500-odd aliases the
- // library exports. An application that resolves glDeleteFramebuffersARB, as
- // anything written against EXT_framebuffer_object does, got a null pointer.
-+#if !defined(__APPLE__) // Mach-O has no symbol aliases
- extern "C" {
- GLAPI GLAPIENTRY void glDeleteFramebuffersARB(GLsizei n, const GLuint* names) __attribute__((alias("glDeleteFramebuffers")));
- GLAPI GLAPIENTRY void glFramebufferRenderbufferARB(GLenum target, GLenum attachment, GLenum renderbuffertarget,
-@@ -353,6 +354,7 @@ GLAPI GLAPIENTRY void glFramebufferRenderbufferARB(GLenum target, GLenum attachm
- GLAPI GLAPIENTRY void glFramebufferTextureLayerARB(GLenum target, GLenum attachment, GLuint texture, GLint level,
-                                                    GLint layer) __attribute__((alias("glFramebufferTextureLayer")));
- }
-+#endif
- 
- // Wrapped for the same reason glReadPixels is: the source is the read framebuffer,
- // and while FSR1 is on the application's framebuffer 0 is not where its frame is.
-diff --git a/MobileGlues-cpp/glx/lookup.cpp b/MobileGlues-cpp/glx/lookup.cpp
-index 7d1ab77..c85fd1c 100644
---- a/MobileGlues-cpp/glx/lookup.cpp
-+++ b/MobileGlues-cpp/glx/lookup.cpp
-@@ -51,7 +51,13 @@ void* glXGetProcAddress(const char* name) {
-     LOG()
-     std::string real_func_name = handle_multidraw_func_name(std::string(name));
- #ifdef __APPLE__
--    return dlsym((void*)(~(uintptr_t)0), real_func_name.c_str());
-+    // (void*)~0 is RTLD_NEXT on Darwin: "search images AFTER the caller",
-+    // which skips libmobileglues itself and hands the app raw ANGLE entry
-+    // points, bypassing every GL translation wrapper. RTLD_SELF starts the
-+    // search in this image so the exported wrappers win; the internal GLES
-+    // backend table still resolves through to ANGLE (gles/loader.cpp), so
-+    // wrapper -> ANGLE calls do not recurse.
-+    return dlsym(RTLD_SELF, real_func_name.c_str());
- #else
- 
-     void* proc = nullptr;
