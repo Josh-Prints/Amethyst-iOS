@@ -53,6 +53,10 @@ static NSString *AmethystBuildVersion(void) {
 
 @implementation LauncherMenuViewController
 
+- (instancetype)init {
+    return [super initWithStyle:UITableViewStyleInsetGrouped];
+}
+
 #define contentNavigationController ((LauncherNavigationController *)self.splitViewController.viewControllers[1])
 
 - (void)viewDidLoad {
@@ -60,27 +64,28 @@ static NSString *AmethystBuildVersion(void) {
     
     self.isInitialVc = YES;
     
-    UIImageView *titleView = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"AppLogo"]];
-    [titleView setContentMode:UIViewContentModeScaleAspectFit];
-    self.navigationItem.titleView = titleView;
-    [titleView sizeToFit];
-    
-    self.options = @[
-        [LauncherMenuCustomItem vcClass:LauncherNewsViewController.class],
-        [LauncherMenuCustomItem vcClass:LauncherProfilesViewController.class],
-        [LauncherMenuCustomItem vcClass:LauncherPreferencesViewController.class],
-    ].mutableCopy;
+    UIView *titleView = [self buildHeaderView];
+    self.tableView.tableHeaderView = titleView;
+    self.navigationItem.title = @"";
+
+    LauncherMenuCustomItem *homeItem = [LauncherMenuCustomItem vcClass:LauncherProfilesViewController.class];
+    homeItem.imageName = @"square.stack.3d.up.fill";
+    LauncherMenuCustomItem *newsItem = [LauncherMenuCustomItem vcClass:LauncherNewsViewController.class];
+    newsItem.imageName = @"newspaper.fill";
+    LauncherMenuCustomItem *settingsItem = [LauncherMenuCustomItem vcClass:LauncherPreferencesViewController.class];
+    settingsItem.imageName = @"gearshape.fill";
+    self.options = @[homeItem, newsItem, settingsItem].mutableCopy;
     if (realUIIdiom != UIUserInterfaceIdiomTV) {
         [self.options addObject:(id)[LauncherMenuCustomItem
                                      title:localize(@"launcher.menu.custom_controls", nil)
-                                     imageName:@"MenuCustomControls" action:^{
+                                     imageName:@"gamecontroller.fill" action:^{
             [contentNavigationController performSelector:@selector(enterCustomControls)];
         }]];
     }
     [self.options addObject:
      (id)[LauncherMenuCustomItem
           title:localize(@"launcher.menu.execute_jar", nil)
-          imageName:@"MenuInstallJar" action:^{
+          imageName:@"shippingbox.fill" action:^{
         [contentNavigationController performSelector:@selector(enterModInstaller)];
     }]];
     
@@ -88,7 +93,7 @@ static NSString *AmethystBuildVersion(void) {
     [self.options addObject:
      (id)[LauncherMenuCustomItem
           title:localize(@"login.menu.sendlogs", nil)
-          imageName:@"square.and.arrow.up" action:^{
+          imageName:@"doc.text.magnifyingglass" action:^{
         NSString *latestlogPath = [NSString stringWithFormat:@"file://%s/latestlog.old.txt", getenv("POJAV_HOME")];
         NSLog(@"Path is %@", latestlogPath);
         UIActivityViewController *activityVC;
@@ -119,14 +124,15 @@ static NSString *AmethystBuildVersion(void) {
         }]];
     }
     
-    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     self.tableView.backgroundColor = AMThemeBackground();
-    self.tableView.rowHeight = 56;
-    self.tableView.contentInset = UIEdgeInsetsMake(8, 0, 8, 0);
+    self.tableView.rowHeight = 50;
+    self.tableView.separatorColor = [UIColor colorWithWhite:1.0 alpha:0.06];
 
     // Show the build right in the sidebar so a fresh install is obvious at a glance
     UILabel *buildLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 0, 44)];
-    buildLabel.text = [NSString stringWithFormat:@"Build %@ · %s", AmethystBuildVersion(), CONFIG_COMMIT];
+    buildLabel.numberOfLines = 2;
+    buildLabel.frame = CGRectMake(0, 0, 0, 56);
+    buildLabel.text = [NSString stringWithFormat:@"Emerald %@ · %s\nBased on Amethyst & PojavLauncher", AmethystBuildVersion(), CONFIG_COMMIT];
     buildLabel.textAlignment = NSTextAlignmentCenter;
     buildLabel.font = AMThemeRoundedFont(13, UIFontWeightSemibold);
     buildLabel.textColor = [AMThemeAccent() colorWithAlphaComponent:0.8];
@@ -147,10 +153,10 @@ static NSString *AmethystBuildVersion(void) {
     
     [self updateAccountInfo];
     
-    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:1 inSection:0];
+    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
     [self.tableView selectRowAtIndexPath:indexPath animated:YES scrollPosition:UITableViewScrollPositionNone];
     [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
-    self.lastSelectedIndex = 1;
+    self.lastSelectedIndex = 0;
     
     if (getEntitlementValue(@"get-task-allow")) {
         [self displayProgress:localize(@"login.jit.checking", nil)];
@@ -178,6 +184,8 @@ static NSString *AmethystBuildVersion(void) {
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    // Quick settings may have been changed from the full Settings screen
+    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:1] withRowAnimation:UITableViewRowAnimationNone];
     [self restoreHighlightedSelection];
 }
 
@@ -225,63 +233,259 @@ static NSString *AmethystBuildVersion(void) {
     [self.tableView selectRowAtIndexPath:indexPath animated:NO scrollPosition:UITableViewScrollPositionNone];
 }
 
+#pragma mark - Layout
+
+// Section 0: places (Home, News, Settings) -- the first three options.
+// Section 1: quick settings, changed in place.
+// Section 2: tools -- every remaining option.
+#define kPlacesCount 3
+#define kSectionPlaces 0
+#define kSectionQuick 1
+#define kSectionTools 2
+
+typedef NS_ENUM(NSInteger, AMQuickRow) {
+    AMQuickRenderer,
+    AMQuickMemory,
+    AMQuickResolution,
+    AMQuickModernButtons,
+    AMQuickButtonScale,
+    AMQuickCount
+};
+
+- (UIView *)buildHeaderView {
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 0, 96)];
+    UIImageView *logo = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"AppLogo-Vector"]];
+    logo.contentMode = UIViewContentModeScaleAspectFill;
+    logo.layer.magnificationFilter = kCAFilterNearest;
+    logo.translatesAutoresizingMaskIntoConstraints = NO;
+    logo.clipsToBounds = YES;
+
+    UILabel *name = [UILabel new];
+    name.text = @"Emerald";
+    name.font = AMThemeRoundedFont(30, UIFontWeightHeavy);
+    name.textColor = UIColor.whiteColor;
+    name.adjustsFontSizeToFitWidth = YES;
+
+    UILabel *tagline = [UILabel new];
+    tagline.text = @"Minecraft: Java Edition";
+    tagline.font = AMThemeRoundedFont(13, UIFontWeightSemibold);
+    tagline.textColor = [AMThemeAccent() colorWithAlphaComponent:0.9];
+
+    UIStackView *texts = [[UIStackView alloc] initWithArrangedSubviews:@[name, tagline]];
+    texts.axis = UILayoutConstraintAxisVertical;
+    texts.spacing = 0;
+    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[logo, texts]];
+    row.axis = UILayoutConstraintAxisHorizontal;
+    row.alignment = UIStackViewAlignmentCenter;
+    row.spacing = 12;
+    row.translatesAutoresizingMaskIntoConstraints = NO;
+    [header addSubview:row];
+    [NSLayoutConstraint activateConstraints:@[
+        [logo.widthAnchor constraintEqualToConstant:64],
+        [logo.heightAnchor constraintEqualToConstant:64],
+        [row.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:20],
+        [row.trailingAnchor constraintLessThanOrEqualToAnchor:header.trailingAnchor constant:-16],
+        [row.centerYAnchor constraintEqualToAnchor:header.centerYAnchor]
+    ]];
+    return header;
+}
+
+- (UIImage *)tileForSymbol:(NSString *)symbol {
+    UIImage *glyph = [UIImage systemImageNamed:symbol];
+    if (!glyph) return nil;
+    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:15 weight:UIImageSymbolWeightBold];
+    glyph = [[glyph imageByApplyingSymbolConfiguration:config] imageWithTintColor:AMThemeAccent() renderingMode:UIImageRenderingModeAlwaysOriginal];
+    CGSize size = CGSizeMake(32, 32);
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size];
+    return [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+        UIBezierPath *tile = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, size.width, size.height) cornerRadius:8];
+        [[AMThemeAccent() colorWithAlphaComponent:0.16] setFill];
+        [tile fill];
+        CGSize g = glyph.size;
+        [glyph drawInRect:CGRectMake((size.width - g.width) / 2, (size.height - g.height) / 2, g.width, g.height)];
+    }];
+}
+
+- (NSInteger)optionIndexForIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == kSectionPlaces) return indexPath.row;
+    if (indexPath.section == kSectionTools) return kPlacesCount + indexPath.row;
+    return -1;
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    return 3;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    switch (section) {
+        case kSectionQuick: return @"Quick Settings";
+        case kSectionTools: return @"Tools";
+        default: return nil;
+    }
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    return self.options.count;
+    switch (section) {
+        case kSectionPlaces: return MIN(kPlacesCount, self.options.count);
+        case kSectionQuick: return realUIIdiom == UIUserInterfaceIdiomTV ? AMQuickCount - 2 : AMQuickCount;
+        default: return MAX(0, (NSInteger)self.options.count - kPlacesCount);
+    }
 }
+
+#pragma mark - Quick settings
+
+- (NSString *)rendererDisplayName {
+    NSString *current = getPrefObject(@"video.renderer");
+    NSArray *keys = getRendererKeys(NO);
+    NSArray *names = getRendererNames(NO);
+    NSUInteger i = [keys indexOfObject:current];
+    return (i != NSNotFound && i < names.count) ? names[i] : current;
+}
+
+- (NSString *)memoryDisplayValue {
+    if (getPrefBool(@"java.auto_ram")) return @"Auto";
+    return [NSString stringWithFormat:@"%ld MB", (long)getPrefInt(@"java.allocated_memory")];
+}
+
+- (void)configureQuickCell:(UITableViewCell *)cell row:(NSInteger)row {
+    NSString *title, *value, *icon;
+    cell.accessoryView = nil;
+    cell.accessoryType = UITableViewCellAccessoryNone;
+    switch (row) {
+        case AMQuickRenderer:
+            title = @"Renderer"; icon = @"cpu"; value = [self rendererDisplayName]; break;
+        case AMQuickMemory:
+            title = @"Memory"; icon = @"memorychip"; value = [self memoryDisplayValue]; break;
+        case AMQuickResolution:
+            title = @"Resolution"; icon = @"aspectratio";
+            value = [NSString stringWithFormat:@"%ld%%", (long)getPrefInt(@"video.resolution")]; break;
+        case AMQuickModernButtons: {
+            title = @"Bedrock Buttons"; icon = @"circle.grid.cross.fill";
+            UISwitch *toggle = [UISwitch new];
+            toggle.on = getPrefBool(@"control.modern_buttons");
+            [toggle addTarget:self action:@selector(toggleModernButtons:) forControlEvents:UIControlEventValueChanged];
+            cell.accessoryView = toggle;
+            break;
+        }
+        case AMQuickButtonScale:
+            title = @"Button Size"; icon = @"plusminus.circle.fill";
+            value = [NSString stringWithFormat:@"%ld%%", (long)getPrefInt(@"control.button_scale")]; break;
+    }
+    cell.textLabel.text = title;
+    cell.detailTextLabel.text = value;
+    cell.detailTextLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.55];
+    cell.detailTextLabel.font = AMThemeRoundedFont(15, UIFontWeightMedium);
+    cell.imageView.image = [self tileForSymbol:icon];
+    if (value) cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+}
+
+- (void)toggleModernButtons:(UISwitch *)sender {
+    setPrefBool(@"control.modern_buttons", sender.on);
+}
+
+- (void)presentChoices:(NSString *)title options:(NSArray<NSString *> *)labels from:(NSIndexPath *)indexPath handler:(void (^)(NSInteger index))handler {
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:title message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+    [labels enumerateObjectsUsingBlock:^(NSString *label, NSUInteger i, BOOL *stop) {
+        [sheet addAction:[UIAlertAction actionWithTitle:label style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            handler(i);
+            [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationNone];
+        }]];
+    }];
+    [sheet addAction:[UIAlertAction actionWithTitle:localize(@"Cancel", nil) style:UIAlertActionStyleCancel handler:nil]];
+    UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:indexPath];
+    sheet.popoverPresentationController.sourceView = cell ?: self.view;
+    sheet.popoverPresentationController.sourceRect = cell ? cell.bounds : self.view.bounds;
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)selectQuickRow:(NSIndexPath *)indexPath {
+    switch (indexPath.row) {
+        case AMQuickRenderer: {
+            NSArray *keys = getRendererKeys(NO);
+            [self presentChoices:@"Renderer" options:getRendererNames(NO) from:indexPath handler:^(NSInteger i) {
+                setPrefObject(@"video.renderer", keys[i]);
+            }];
+            break;
+        }
+        case AMQuickMemory: {
+            NSArray<NSNumber *> *sizes = @[@1024, @1536, @2048, @3072, @4096];
+            NSMutableArray *labels = [NSMutableArray arrayWithObject:@"Auto"];
+            for (NSNumber *mb in sizes) [labels addObject:[NSString stringWithFormat:@"%@ MB", mb]];
+            [self presentChoices:@"Memory" options:labels from:indexPath handler:^(NSInteger i) {
+                setPrefBool(@"java.auto_ram", i == 0);
+                if (i > 0) setPrefInt(@"java.allocated_memory", sizes[i - 1].integerValue);
+            }];
+            break;
+        }
+        case AMQuickResolution: {
+            NSArray<NSNumber *> *values = @[@50, @67, @75, @85, @100];
+            NSMutableArray *labels = [NSMutableArray new];
+            for (NSNumber *v in values) [labels addObject:[NSString stringWithFormat:@"%@%%", v]];
+            [self presentChoices:@"Resolution" options:labels from:indexPath handler:^(NSInteger i) {
+                setPrefInt(@"video.resolution", values[i].integerValue);
+            }];
+            break;
+        }
+        case AMQuickButtonScale: {
+            NSArray<NSNumber *> *values = @[@75, @90, @100, @115, @130, @150];
+            NSMutableArray *labels = [NSMutableArray new];
+            for (NSNumber *v in values) [labels addObject:[NSString stringWithFormat:@"%@%%", v]];
+            [self presentChoices:@"Button Size" options:labels from:indexPath handler:^(NSInteger i) {
+                setPrefInt(@"control.button_scale", values[i].integerValue);
+            }];
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+#pragma mark - Table
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"cell"];
+    BOOL quick = indexPath.section == kSectionQuick;
+    NSString *identifier = quick ? @"quick" : @"cell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     if (cell == nil) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"cell"];
+        cell = [[UITableViewCell alloc] initWithStyle:(quick ? UITableViewCellStyleValue1 : UITableViewCellStyleDefault) reuseIdentifier:identifier];
+        UIView *selected = [UIView new];
+        selected.backgroundColor = [AMThemeAccent() colorWithAlphaComponent:0.22];
+        cell.selectedBackgroundView = selected;
     }
-
-    cell.textLabel.text = [self.options[indexPath.row] title];
-    cell.backgroundColor = UIColor.clearColor;
+    cell.backgroundColor = AMThemeSurface();
     cell.textLabel.font = AMThemeRoundedFont(17, UIFontWeightSemibold);
     cell.textLabel.textColor = UIColor.whiteColor;
-    cell.imageView.tintColor = AMThemeAccent();
-    if (![cell.selectedBackgroundView isKindOfClass:UIView.class] || cell.selectedBackgroundView.tag != 0x414D) {
-        // Rounded pill behind the selected row instead of the full-width grey bar
-        UIView *container = [UIView new];
-        container.tag = 0x414D;
-        UIView *pill = [UIView new];
-        pill.backgroundColor = [AMThemeAccent() colorWithAlphaComponent:0.18];
-        pill.layer.cornerRadius = 14;
-        if (@available(iOS 13.0, *)) {
-            pill.layer.cornerCurve = kCACornerCurveContinuous;
-        }
-        pill.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        pill.frame = CGRectInset(container.bounds, 10, 4);
-        [container addSubview:pill];
-        cell.selectedBackgroundView = container;
+    cell.textLabel.adjustsFontSizeToFitWidth = YES;
+    cell.textLabel.minimumScaleFactor = 0.75;
+
+    if (quick) {
+        [self configureQuickCell:cell row:indexPath.row];
+        return cell;
     }
-    
-    UIImage *origImage = [UIImage systemImageNamed:[self.options[indexPath.row]
-        performSelector:@selector(imageName)]];
-    if (origImage) {
-        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(40, 40)];
-        UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext*_Nonnull myContext) {
-            CGFloat scaleFactor = 40/origImage.size.height;
-            [origImage drawInRect:CGRectMake(20 - origImage.size.width*scaleFactor/2, 0, origImage.size.width*scaleFactor, 40)];
-        }];
-        cell.imageView.image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-    }
-    
-    if (cell.imageView.image == nil) {
+
+    LauncherMenuCustomItem *item = self.options[[self optionIndexForIndexPath:indexPath]];
+    cell.textLabel.text = item.title;
+    cell.imageView.image = [self tileForSymbol:item.imageName];
+    if (!cell.imageView.image && item.imageName.length > 0) {
         cell.imageView.layer.magnificationFilter = kCAFilterNearest;
-        cell.imageView.layer.minificationFilter = kCAFilterNearest;
-        cell.imageView.image = [UIImage imageNamed:[self.options[indexPath.row]
-            performSelector:@selector(imageName)]];
-        cell.imageView.image = [cell.imageView.image _imageWithSize:CGSizeMake(40, 40)];
+        cell.imageView.image = [[UIImage imageNamed:item.imageName] _imageWithSize:CGSizeMake(32, 32)];
     }
+    cell.accessoryType = UITableViewCellAccessoryNone;
     return cell;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    LauncherMenuCustomItem *selected = self.options[indexPath.row];
+    if (indexPath.section == kSectionQuick) {
+        [self restoreHighlightedSelection];
+        [self selectQuickRow:indexPath];
+        return;
+    }
+
+    NSInteger optionIndex = [self optionIndexForIndexPath:indexPath];
+    LauncherMenuCustomItem *selected = self.options[optionIndex];
     
     if (selected.action != nil) {
         [self restoreHighlightedSelection];
@@ -292,7 +496,7 @@ static NSString *AmethystBuildVersion(void) {
         } else {
             self.options[self.lastSelectedIndex].vcArray = contentNavigationController.viewControllers;
             [contentNavigationController setViewControllers:selected.vcArray animated:NO];
-            self.lastSelectedIndex = indexPath.row;
+            self.lastSelectedIndex = optionIndex;
         }
         selected.vcArray[0].navigationItem.rightBarButtonItem = self.accountBtnItem;
         selected.vcArray[0].navigationItem.leftBarButtonItem = self.splitViewController.displayModeButtonItem;
