@@ -1,0 +1,58 @@
+--- a/MobileGlues-cpp/gl/drawing.cpp
++++ b/MobileGlues-cpp/gl/drawing.cpp
+@@ -107,6 +107,24 @@
+     CHECK_GL_ERROR
+ }
+ 
++// Non-indexed draws need the same texture-buffer setup as indexed ones: Minecraft
++// 26.x draws clouds with glDrawArraysInstanced and reads their cells through an
++// emulated isamplerBuffer, whose u_BufferTexWidth would otherwise stay 0 and fold
++// every cell onto the same texel.
++void glDrawArrays(GLenum mode, GLint first, GLsizei count) {
++    LOG()
++    prepareForDraw();
++    GLES.glDrawArrays(mode, first, count);
++    CHECK_GL_ERROR
++}
++
++void glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount) {
++    LOG()
++    prepareForDraw();
++    GLES.glDrawArraysInstanced(mode, first, count, instancecount);
++    CHECK_GL_ERROR
++}
++
+ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices) {
+     LOG()
+     LOG_D("glDrawElements, mode: %d, count: %d, type: %d, indices: %p", mode, count, type, indices)
+--- a/MobileGlues-cpp/gl/drawing.h
++++ b/MobileGlues-cpp/gl/drawing.h
+@@ -32,6 +32,8 @@
+ {
+ #endif
+ 
++    GLAPI GLAPIENTRY void glDrawArrays(GLenum mode, GLint first, GLsizei count);
++    GLAPI GLAPIENTRY void glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
+     GLAPI GLAPIENTRY void glDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const void* indices,
+                                                   GLsizei primcount);
+     GLAPI GLAPIENTRY void glDrawElementsBaseVertex(GLenum mode, GLsizei count, GLenum type, const void* indices,
+--- a/MobileGlues-cpp/gl/gl_native.cpp
++++ b/MobileGlues-cpp/gl/gl_native.cpp
+@@ -55,7 +55,7 @@
+ NATIVE_FUNCTION_HEAD(void, glDetachShader, GLuint program, GLuint shader) NATIVE_FUNCTION_END_NO_RETURN(void, glDetachShader, program,shader)
+ NATIVE_FUNCTION_HEAD(void, glDisable, GLenum cap) NATIVE_FUNCTION_END_NO_RETURN(void, glDisable, cap)
+ NATIVE_FUNCTION_HEAD(void, glDisableVertexAttribArray, GLuint index) NATIVE_FUNCTION_END_NO_RETURN(void, glDisableVertexAttribArray, index)
+-NATIVE_FUNCTION_HEAD(void, glDrawArrays, GLenum mode, GLint first, GLsizei count) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawArrays, mode,first,count)
++//NATIVE_FUNCTION_HEAD(void, glDrawArrays, GLenum mode, GLint first, GLsizei count) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawArrays, mode,first,count)
+ //NATIVE_FUNCTION_HEAD(void, glDrawElements, GLenum mode, GLsizei count, GLenum type, const void *indices) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawElements, mode,count,type,indices)
+ NATIVE_FUNCTION_HEAD(void, glEnable, GLenum cap) NATIVE_FUNCTION_END_NO_RETURN(void, glEnable, cap)
+ NATIVE_FUNCTION_HEAD(void, glEnableVertexAttribArray, GLuint index) NATIVE_FUNCTION_END_NO_RETURN(void, glEnableVertexAttribArray, index)
+@@ -222,7 +222,7 @@
+ NATIVE_FUNCTION_HEAD(void, glGetActiveUniformBlockiv, GLuint program, GLuint uniformBlockIndex, GLenum pname, GLint *params) NATIVE_FUNCTION_END_NO_RETURN(void, glGetActiveUniformBlockiv, program,uniformBlockIndex,pname,params)
+ NATIVE_FUNCTION_HEAD(void, glGetActiveUniformBlockName, GLuint program, GLuint uniformBlockIndex, GLsizei bufSize, GLsizei *length, GLchar *uniformBlockName) NATIVE_FUNCTION_END_NO_RETURN(void, glGetActiveUniformBlockName, program,uniformBlockIndex,bufSize,length,uniformBlockName)
+ NATIVE_FUNCTION_HEAD(void, glUniformBlockBinding, GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding) NATIVE_FUNCTION_END_NO_RETURN(void, glUniformBlockBinding, program,uniformBlockIndex,uniformBlockBinding)
+-NATIVE_FUNCTION_HEAD(void, glDrawArraysInstanced, GLenum mode, GLint first, GLsizei count, GLsizei instancecount) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawArraysInstanced, mode,first,count,instancecount)
++//NATIVE_FUNCTION_HEAD(void, glDrawArraysInstanced, GLenum mode, GLint first, GLsizei count, GLsizei instancecount) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawArraysInstanced, mode,first,count,instancecount)
+ // NATIVE_FUNCTION_HEAD(void, glDrawElementsInstanced, GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawElementsInstanced, mode,count,type,indices,instancecount)
+ NATIVE_FUNCTION_HEAD(GLsync, glFenceSync, GLenum condition, GLbitfield flags) NATIVE_FUNCTION_END(GLsync, glFenceSync, condition,flags)
+ NATIVE_FUNCTION_HEAD(GLboolean, glIsSync, GLsync sync) NATIVE_FUNCTION_END(GLboolean, glIsSync, sync)
