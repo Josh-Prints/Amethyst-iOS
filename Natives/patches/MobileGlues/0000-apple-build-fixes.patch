@@ -1,8 +1,34 @@
 diff --git a/MobileGlues-cpp/CMakeLists.txt b/MobileGlues-cpp/CMakeLists.txt
-index 0426186..2cae9f7 100644
+index 0426186..df55cc6 100644
 --- a/MobileGlues-cpp/CMakeLists.txt
 +++ b/MobileGlues-cpp/CMakeLists.txt
-@@ -138,7 +138,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+@@ -25,11 +25,24 @@ set(SPIRV_CROSS_CLI            OFF CACHE BOOL "Disable CLI binary" FORCE)
+ set(SPIRV_CROSS_STATIC         ON  CACHE BOOL "Prefer static libs" FORCE)
+ set(SPIRV_CROSS_ENABLE_UTIL    OFF CACHE BOOL "Disable util" FORCE)
+ 
++# On Apple, keep our glslang/SPIRV-Cross private. Minecraft 26.x loads its own
++# (different) copies through libshaderc and libspirv-cross, and dyld coalesces
++# exported weak C++ symbols -- templates, inline functions, vtables -- across
++# images, so the two versions got cross-wired (swizzles like pos.xz came out as
++# vec2(pos.x, pos.x), turning the world grey).
++if(APPLE)
++    set(CMAKE_CXX_VISIBILITY_PRESET hidden)
++    set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
++endif()
+ add_subdirectory(3rdparty/glslang)
+ add_subdirectory(3rdparty/SPIRV-Cross)
++if(APPLE)
++    unset(CMAKE_CXX_VISIBILITY_PRESET)
++    set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
++endif()
+ 
+ if(MACOS)
+-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -fvisibility=default -funwind-tables -g -D_THREAD_SAFE -fPIC -stdlib=libc++")
++    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -fvisibility=default -fvisibility-inlines-hidden -funwind-tables -g -D_THREAD_SAFE -fPIC -stdlib=libc++")
+     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w -g -std=gnu99 -funwind-tables -fvisibility=hidden")
+     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++")
+ else()
+@@ -138,7 +151,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
      spirv-cross-c
  )
  
@@ -11,6 +37,16 @@ index 0426186..2cae9f7 100644
      # Calls between this library's own translation units must land in this
      # library. Without this, an internal call to an exported gl* symbol goes
      # through a preemptible PLT slot, and in an Android app process the system
+@@ -182,3 +195,9 @@ if (PROFILING)
+     target_link_libraries(${CMAKE_PROJECT_NAME} perfetto ${CMAKE_THREAD_LIBS_INIT})
+     target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC PROFILING=1)
+ endif()
++
++if(APPLE)
++    # This file instantiates glslang/SPIRV-Cross templates and vtables; keep them
++    # out of the export table for the same reason as above.
++    set_source_files_properties(gl/glsl/glsl_for_es.cpp PROPERTIES COMPILE_OPTIONS "-fvisibility=hidden")
++endif()
 diff --git a/MobileGlues-cpp/gl/framebuffer.cpp b/MobileGlues-cpp/gl/framebuffer.cpp
 index cb2585a..9a4453b 100644
 --- a/MobileGlues-cpp/gl/framebuffer.cpp
