@@ -36,6 +36,8 @@
             @"recording_hide": @YES,
             @"gesture_mouse": @YES,
             @"gesture_hotbar": @YES,
+            @"finger_scroll": @YES,
+            @"auto_keyboard": @YES,
             @"disable_haptics": @NO,
             @"slideable_hotbar": @NO,
             @"press_duration": @(400),

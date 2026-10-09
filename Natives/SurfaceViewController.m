@@ -56,6 +56,18 @@ static GameSurfaceView* pojavWindow;
 
 @property(nonatomic) BOOL enableMouseGestures, enableHotbarGestures;
 
+// Emerald: auto keyboard / drag-to-scroll
+@property(nonatomic) BOOL fingerScroll, autoKeyboard;
+@property(nonatomic) BOOL gameTextInput, keyboardOpenedByGame;
+@property(nonatomic) CGFloat textAreaTop, textAreaBottom;
+@property(nonatomic) CGRect keyboardFrame;
+@property(nonatomic) NSUInteger textInputGeneration;
+@property(nonatomic) CGFloat scrollRemainder;
+
+- (void)dragScrollWithTouch:(UITouch *)touch at:(CGPoint)location;
+- (void)setGameTextInput:(BOOL)active top:(CGFloat)top bottom:(CGFloat)bottom;
+- (void)updateKeyboardShiftAnimated:(BOOL)animated duration:(NSTimeInterval)duration curve:(UIViewAnimationOptions)curve;
+
 @property(nonatomic) UIImpactFeedbackGenerator *lightHaptic;
 @property(nonatomic) UIImpactFeedbackGenerator *mediumHaptic;
 
@@ -204,6 +216,9 @@ static GameSurfaceView* pojavWindow;
     self.swipeableButtons = [[NSMutableArray alloc] init];
 
     [KeyboardInput initKeycodeTable];
+    self.textAreaTop = self.textAreaBottom = -1;
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(keyboardFrameWillChange:) name:UIKeyboardWillChangeFrameNotification object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(keyboardFrameWillChange:) name:UIKeyboardWillHideNotification object:nil];
     self.mouseConnectCallback = [[NSNotificationCenter defaultCenter] addObserverForName:GCMouseDidConnectNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
         NSLog(@"Input: Mouse connected!");
         GCMouse* mouse = note.object;
@@ -341,6 +356,8 @@ static GameSurfaceView* pojavWindow;
     self.enableMouseGestures = getPrefBool(@"control.gesture_mouse");
     self.enableHotbarGestures = getPrefBool(@"control.gesture_hotbar");
     self.shouldTriggerHaptic = !getPrefBool(@"control.disable_haptics");
+    self.fingerScroll = getPrefBool(@"control.finger_scroll");
+    self.autoKeyboard = getPrefBool(@"control.auto_keyboard");
 
     self.scrollPanGesture.enabled = self.enableMouseGestures;
     self.doubleTapGesture.enabled = self.enableHotbarGestures;
@@ -607,6 +624,11 @@ static GameSurfaceView* pojavWindow;
 
         if (touchEvent == self.primaryTouch) {
             if ([self isTouchInactive:self.primaryTouch]) return; // FIXME: should be? ACTION_UP will never be sent
+            if (event == ACTION_DOWN) {
+                self.scrollRemainder = 0;
+            } else if (event == ACTION_MOVE) {
+                [self dragScrollWithTouch:touchEvent at:locationInView];
+            }
             if (event == ACTION_MOVE && isGrabbing) {
                 event = ACTION_MOVE_MOTION;
                 CGPoint prevLocationInView = [touchEvent previousLocationInView:self.rootView];
@@ -811,6 +833,96 @@ static GameSurfaceView* pojavWindow;
         if (velocity.x != 0.0f || velocity.y != 0.0f) {
             CallbackBridge_nativeSendScroll(velocity.x/self.view.frame.size.width, velocity.y/self.view.frame.size.height);
         }
+    }
+}
+
+#pragma mark - Emerald: drag to scroll
+
+// In menus, a one-finger drag scrolls whatever list is under the finger, like
+// any iOS list. Taps still click; hold-then-drag still drags (sliders, items).
+- (void)dragScrollWithTouch:(UITouch *)touch at:(CGPoint)location {
+    if (!self.fingerScroll || isGrabbing || virtualMouseEnabled || self.shouldTriggerClick) return;
+    UIGestureRecognizerState lp = self.longPressGesture.state;
+    if (lp == UIGestureRecognizerStateBegan || lp == UIGestureRecognizerStateChanged) return;
+    CGPoint prev = [touch previousLocationInView:self.rootView];
+    // points -> MC GUI pixels (inverse of mcscale())
+    CGFloat toGui = UIScreen.mainScreen.scale * resolutionScale / MAX(guiScale, 1);
+    CGFloat guiDelta = (location.y - prev.y) * toGui;
+    // Lists scroll ~half an entry (12.5 GUI px for settings rows) per wheel notch,
+    // so this keeps the content roughly under the finger.
+    CGFloat amount = guiDelta / 12.5 + self.scrollRemainder;
+    if (fabs(amount) < 0.05) {
+        self.scrollRemainder = amount;
+        return;
+    }
+    self.scrollRemainder = 0;
+    CallbackBridge_nativeSendScroll(0, amount);
+}
+
+#pragma mark - Emerald: auto keyboard
+
+- (void)setGameTextInput:(BOOL)active top:(CGFloat)top bottom:(CGFloat)bottom {
+    BOOL wasActive = self.gameTextInput;
+    self.gameTextInput = active;
+    self.textAreaTop = top;
+    self.textAreaBottom = bottom;
+    NSUInteger gen = self.textInputGeneration;
+    if (active != wasActive) gen = ++self.textInputGeneration;
+
+    if (active && !wasActive) {
+        if (self.autoKeyboard && !self.inputTextField.isFirstResponder) {
+            self.keyboardOpenedByGame = YES;
+            [self.inputTextField becomeFirstResponder];
+            // Insert an undeletable space
+            self.inputTextField.text = @" ";
+        }
+    } else if (!active && wasActive) {
+        // Focus often hops between two boxes; wait a moment before dismissing.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            if (self.textInputGeneration != gen || self.gameTextInput) return;
+            if (self.keyboardOpenedByGame && self.inputTextField.isFirstResponder) {
+                [self.inputTextField resignFirstResponder];
+                self.inputTextField.alpha = 1.0f;
+            }
+            self.keyboardOpenedByGame = NO;
+        });
+    }
+    [self updateKeyboardShiftAnimated:YES duration:0.25 curve:UIViewAnimationOptionCurveEaseInOut];
+}
+
+- (void)keyboardFrameWillChange:(NSNotification *)note {
+    CGRect frame = [note.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+    if ([note.name isEqualToString:UIKeyboardWillHideNotification]) {
+        frame = CGRectZero;
+        self.keyboardOpenedByGame = NO;
+    }
+    self.keyboardFrame = frame;
+    NSTimeInterval duration = [note.userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
+    UIViewAnimationOptions curve = [note.userInfo[UIKeyboardAnimationCurveUserInfoKey] unsignedIntegerValue] << 16;
+    [self updateKeyboardShiftAnimated:YES duration:duration curve:curve];
+}
+
+// Slide the game up so the focused text box (chat by default) sits just above
+// the keyboard. Touch coordinates are taken in rootView, so input still maps.
+- (void)updateKeyboardShiftAnimated:(BOOL)animated duration:(NSTimeInterval)duration curve:(UIViewAnimationOptions)curve {
+    CGFloat shift = 0;
+    if (self.autoKeyboard && self.inputTextField.isFirstResponder && !CGRectIsEmpty(self.keyboardFrame)) {
+        CGFloat viewH = self.view.bounds.size.height;
+        CGRect kb = [self.view convertRect:self.keyboardFrame fromCoordinateSpace:UIScreen.mainScreen.coordinateSpace];
+        CGFloat kbTop = MIN(viewH, MAX(0, CGRectGetMinY(kb)));
+        CGFloat targetBottom = viewH;
+        if (self.gameTextInput && self.textAreaBottom > 0 && self.textAreaBottom <= 1) {
+            targetBottom = self.textAreaBottom * viewH + 8;
+        }
+        shift = MAX(0, MIN(viewH - kbTop, targetBottom - kbTop));
+    }
+    CGAffineTransform t = CGAffineTransformMakeTranslation(0, -shift);
+    if (CGAffineTransformEqualToTransform(self.rootView.transform, t)) return;
+    void (^apply)(void) = ^{ self.rootView.transform = t; };
+    if (animated && duration > 0) {
+        [UIView animateWithDuration:duration delay:0 options:curve | UIViewAnimationOptionBeginFromCurrentState animations:apply completion:nil];
+    } else {
+        apply();
     }
 }
 
@@ -1056,3 +1168,11 @@ int touchesMovedCount;
 }
 
 @end
+
+JNIEXPORT void JNICALL Java_org_lwjgl_glfw_TextInputWatcher_nativeSetTextInput(JNIEnv *env, jclass clazz, jboolean active, jfloat top, jfloat bottom) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIViewController *vc = UIWindow.mainWindow.rootViewController;
+        if (![vc isKindOfClass:SurfaceViewController.class]) return;
+        [(SurfaceViewController *)vc setGameTextInput:active top:top bottom:bottom];
+    });
+}

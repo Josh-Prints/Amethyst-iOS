@@ -1155,6 +1155,7 @@ public class GLFW
     public static void glfwPollEvents() {
         for (Long ptr : mGLFWWindowMap.keySet()) callJV(ptr, Functions.PumpEvents);
         callV(Functions.RewindEvents);
+        TextInputWatcher.poll();
     }
 
     public static void internalWindowSizeChanged(long window, int w, int h) {

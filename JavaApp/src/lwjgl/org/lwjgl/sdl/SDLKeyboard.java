@@ -6,6 +6,8 @@ package org.lwjgl.sdl;
 
 import java.nio.ByteBuffer;
 
+import org.lwjgl.glfw.TextInputWatcher;
+
 public class SDLKeyboard {
     protected SDLKeyboard() {}
 
@@ -31,16 +33,20 @@ public class SDLKeyboard {
         return PojavSDL.keyName(PojavSDL.scancodeToKeycode(scancode));
     }
 
+    // Emerald: MC calls these when a text box gains/loses focus; the launcher
+    // opens the iOS keyboard and lifts the game above it.
     public static boolean SDL_StartTextInput(long window) {
+        TextInputWatcher.sdlStart();
         return true;
     }
 
     public static boolean SDL_StopTextInput(long window) {
+        TextInputWatcher.sdlStop();
         return true;
     }
 
     public static boolean SDL_TextInputActive(long window) {
-        return true;
+        return TextInputWatcher.isActive();
     }
 
     public static boolean SDL_ClearComposition(long window) {
@@ -48,10 +54,12 @@ public class SDLKeyboard {
     }
 
     public static boolean SDL_SetTextInputArea(long window, SDL_Rect.Buffer rect, int cursor) {
+        if (rect != null) TextInputWatcher.sdlArea(rect.y(), rect.h(), PojavSDL.height());
         return true;
     }
 
     public static boolean SDL_SetTextInputArea(long window, SDL_Rect rect, int cursor) {
+        if (rect != null) TextInputWatcher.sdlArea(rect.y(), rect.h(), PojavSDL.height());
         return true;
     }
 
