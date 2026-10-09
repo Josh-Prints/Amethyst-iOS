@@ -263,6 +263,11 @@
                 @"min": @(100),
                 @"max": @(1000),
             },
+            @{@"key": @"modern_buttons",
+                @"hasDetail": @YES,
+                @"icon": @"square.grid.3x3.square",
+                @"type": self.typeSwitch
+            },
             @{@"key": @"button_scale",
                 @"hasDetail": @YES,
                 @"icon": @"aspectratio",

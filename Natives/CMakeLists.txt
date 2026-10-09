@@ -137,6 +137,7 @@ add_executable(AngelAuraAmethyst
   input/KeyboardInput.m
 
   AccountListViewController.m
+  AmethystTheme.m
   AppDelegate.m
   CustomControlsViewController.m
   CustomControlsViewController+UndoManager.m

@@ -1,3 +1,4 @@
+#import "AmethystTheme.h"
 #import "authenticator/BaseAuthenticator.h"
 #import "AppDelegate.h"
 #import "SceneDelegate.h"
@@ -154,6 +155,7 @@ void UIKit_returnToSplitView() {
 }
 
 void launchInitialViewController(UIWindow *window) {
+    AMThemeApply(window);
     window.rootViewController = [[LauncherSplitViewController alloc] initWithStyle:UISplitViewControllerStyleDoubleColumn];
 #if 0
     if (getPrefBool(@"internal.internal_launch_on_boot")) {

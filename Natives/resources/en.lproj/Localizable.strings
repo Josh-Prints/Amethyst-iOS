@@ -217,6 +217,8 @@
 "preference.title.press_duration" = "Long-press duration (ms)";
 "preference.detail.press_duration" = "Trigger press duration for destroying blocks and dropping items.";
 "preference.title.button_scale" = "On-screen button scale (%)";
+"preference.title.modern_buttons" = "Bedrock-style buttons";
+"preference.detail.modern_buttons" = "Rounded on-screen buttons with icons instead of text labels";
 "preference.detail.button_scale" = "Upscale them if buttons are too small, usually needed for iPad users.";
 "preference.title.mouse_scale" = "Mouse scaling (%)";
 "preference.detail.mouse_scale" = "Change the size of the virtual mouse";

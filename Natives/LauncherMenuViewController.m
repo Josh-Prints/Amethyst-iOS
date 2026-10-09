@@ -12,6 +12,7 @@
 #import "UIButton+AFNetworking.h"
 #import "UIImageView+AFNetworking.h"
 #import "UIKit+hook.h"
+#import "AmethystTheme.h"
 #import "config.h"
 #import "ios_uikit_bridge.h"
 #import "utils.h"
@@ -119,13 +120,16 @@ static NSString *AmethystBuildVersion(void) {
     }
     
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.tableView.backgroundColor = AMThemeBackground();
+    self.tableView.rowHeight = 56;
+    self.tableView.contentInset = UIEdgeInsetsMake(8, 0, 8, 0);
 
     // Show the build right in the sidebar so a fresh install is obvious at a glance
     UILabel *buildLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 0, 44)];
     buildLabel.text = [NSString stringWithFormat:@"Build %@ · %s", AmethystBuildVersion(), CONFIG_COMMIT];
     buildLabel.textAlignment = NSTextAlignmentCenter;
-    buildLabel.font = [UIFont monospacedDigitSystemFontOfSize:13 weight:UIFontWeightSemibold];
-    buildLabel.textColor = UIColor.systemPurpleColor;
+    buildLabel.font = AMThemeRoundedFont(13, UIFontWeightSemibold);
+    buildLabel.textColor = [AMThemeAccent() colorWithAlphaComponent:0.8];
     self.tableView.tableFooterView = buildLabel;
     
     self.navigationController.toolbarHidden = NO;
@@ -234,6 +238,25 @@ static NSString *AmethystBuildVersion(void) {
     }
 
     cell.textLabel.text = [self.options[indexPath.row] title];
+    cell.backgroundColor = UIColor.clearColor;
+    cell.textLabel.font = AMThemeRoundedFont(17, UIFontWeightSemibold);
+    cell.textLabel.textColor = UIColor.whiteColor;
+    cell.imageView.tintColor = AMThemeAccent();
+    if (![cell.selectedBackgroundView isKindOfClass:UIView.class] || cell.selectedBackgroundView.tag != 0x414D) {
+        // Rounded pill behind the selected row instead of the full-width grey bar
+        UIView *container = [UIView new];
+        container.tag = 0x414D;
+        UIView *pill = [UIView new];
+        pill.backgroundColor = [AMThemeAccent() colorWithAlphaComponent:0.18];
+        pill.layer.cornerRadius = 14;
+        if (@available(iOS 13.0, *)) {
+            pill.layer.cornerCurve = kCACornerCurveContinuous;
+        }
+        pill.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        pill.frame = CGRectInset(container.bounds, 10, 4);
+        [container addSubview:pill];
+        cell.selectedBackgroundView = container;
+    }
     
     UIImage *origImage = [UIImage systemImageNamed:[self.options[indexPath.row]
         performSelector:@selector(imageName)]];

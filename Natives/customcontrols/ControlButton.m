@@ -4,6 +4,7 @@
 #import "NSPredicateUtilitiesExternal.h"
 #import "../LauncherPreferences.h"
 #import "../utils.h"
+#import "../glfw_keycodes.h"
 
 #import <objc/runtime.h>
 
@@ -12,7 +13,50 @@
 #define INSERT_VALUE(KEY, VALUE) \
   string = [string stringByReplacingOccurrencesOfString:[NSString stringWithFormat:@"${%@}", @(KEY)] withString:VALUE];
 
-@implementation ControlButton
+
+// Bedrock-style look: rounded keys with SF Symbols in place of text labels.
+// A button opts out with "icon": "none" or picks its own with "icon": "<SF Symbol>".
+static NSString *ModernIconForKeycode(int keycode) {
+    switch (keycode) {
+        case GLFW_KEY_W: return @"chevron.up";
+        case GLFW_KEY_A: return @"chevron.left";
+        case GLFW_KEY_S: return @"chevron.down";
+        case GLFW_KEY_D: return @"chevron.right";
+        case GLFW_KEY_SPACE: return @"arrowshape.up.fill";
+        case GLFW_KEY_LEFT_SHIFT: return @"arrow.down.to.line";
+        case GLFW_KEY_LEFT_CONTROL: return @"hare.fill";
+        case GLFW_KEY_E: return @"ellipsis";
+        case GLFW_KEY_T: return @"bubble.left.fill";
+        case GLFW_KEY_ESCAPE: return @"pause.fill";
+        case GLFW_KEY_TAB: return @"person.2.fill";
+        case GLFW_KEY_F: return @"arrow.left.arrow.right";
+        case GLFW_KEY_Q: return @"tray.and.arrow.down.fill";
+        case GLFW_KEY_C: return @"plus.magnifyingglass";
+        case GLFW_KEY_F1: return @"eye.slash.fill";
+        case GLFW_KEY_F2: return @"camera.fill";
+        case GLFW_KEY_F3: return @"info.circle.fill";
+        case GLFW_KEY_F5: return @"camera.rotate.fill";
+        case SPECIALBTN_KEYBOARD: return @"keyboard";
+        case SPECIALBTN_TOGGLECTRL: return @"square.on.square.dashed";
+        case SPECIALBTN_MOUSEPRI: return @"hand.point.up.left.fill";
+        case SPECIALBTN_MOUSESEC: return @"hand.raised.fill";
+        case SPECIALBTN_VIRTUALMOUSE: return @"cursorarrow";
+        case SPECIALBTN_MOUSEMID: return @"circle.circle.fill";
+        case SPECIALBTN_SCROLLUP: return @"chevron.up.circle.fill";
+        case SPECIALBTN_SCROLLDOWN: return @"chevron.down.circle.fill";
+        case SPECIALBTN_MENU: return @"line.3.horizontal";
+        default: return nil;
+    }
+}
+
+static BOOL ModernButtonsEnabled(void) {
+    id value = getPrefObject(@"control.modern_buttons");
+    return value == nil || [value boolValue];
+}
+
+@implementation ControlButton {
+    CALayer *_pressOverlay;
+}
 
 + (void)load {
     Class NSPredicateUtilities = objc_getMetaClass("_NSPredicateUtilities");
@@ -203,8 +247,73 @@
 
     [UIView performWithoutAnimation:^{
         [self setTitle:self.properties[@"name"] forState:UIControlStateNormal];
+        [self setImage:nil forState:UIControlStateNormal];
+        if (ModernButtonsEnabled()) {
+            [self applyModernStyle];
+        }
         [self layoutIfNeeded];
     }];
+}
+
+- (NSString *)modernIconName {
+    NSString *icon = self.properties[@"icon"];
+    if ([icon isKindOfClass:NSString.class] && icon.length > 0) {
+        return [icon isEqualToString:@"none"] ? nil : icon;
+    }
+    NSArray *keycodes = self.properties[@"keycodes"];
+    if (![keycodes isKindOfClass:NSArray.class] || keycodes.count == 0) return nil;
+    // Only single-key buttons get an icon; a combo keeps its label.
+    for (NSUInteger i = 1; i < keycodes.count; i++) {
+        if ([keycodes[i] intValue] != 0) return nil;
+    }
+    return ModernIconForKeycode([keycodes[0] intValue]);
+}
+
+- (void)applyModernStyle {
+    CGFloat side = MIN(self.frame.size.width, self.frame.size.height);
+    self.layer.cornerRadius = side * 0.28;
+    if (@available(iOS 13.0, *)) {
+        self.layer.cornerCurve = kCACornerCurveContinuous;
+    }
+    if ([self.properties[@"strokeWidth"] floatValue] <= 0) {
+        self.layer.borderWidth = 1.5;
+        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.28].CGColor;
+    }
+    self.titleLabel.font = [UIFont systemFontOfSize:MAX(11, side * 0.28) weight:UIFontWeightBold];
+
+    NSString *iconName = [self modernIconName];
+    UIImage *icon = iconName ? [UIImage systemImageNamed:iconName] : nil;
+    if (icon) {
+        UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration
+            configurationWithPointSize:side * 0.42 weight:UIImageSymbolWeightBold];
+        [self setImage:[icon imageByApplyingSymbolConfiguration:config] forState:UIControlStateNormal];
+        [self setTitle:nil forState:UIControlStateNormal];
+        self.imageView.contentMode = UIViewContentModeScaleAspectFit;
+    }
+
+    if (!_pressOverlay) {
+        _pressOverlay = [CALayer layer];
+        _pressOverlay.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.25].CGColor;
+        _pressOverlay.opacity = 0;
+        [self.layer addSublayer:_pressOverlay];
+    }
+    _pressOverlay.frame = self.bounds;
+    _pressOverlay.cornerRadius = self.layer.cornerRadius;
+}
+
+- (void)setHighlighted:(BOOL)highlighted {
+    BOOL changed = self.highlighted != highlighted;
+    [super setHighlighted:highlighted];
+    if (!changed || !_pressOverlay || !ModernButtonsEnabled()) return;
+    [UIView animateWithDuration:highlighted ? 0.06 : 0.14 delay:0
+                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                     animations:^{
+        self.transform = highlighted ? CGAffineTransformMakeScale(0.92, 0.92) : CGAffineTransformIdentity;
+    } completion:nil];
+    [CATransaction begin];
+    [CATransaction setAnimationDuration:highlighted ? 0.06 : 0.14];
+    _pressOverlay.opacity = highlighted ? 1 : 0;
+    [CATransaction commit];
 }
 
 // NOTE: Unlike Android's impl, this method uses dp instead of px (no call to dpToPx), "view.center" instead of "view.pos + view.size/2"

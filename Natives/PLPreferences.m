@@ -40,6 +40,7 @@
             @"slideable_hotbar": @NO,
             @"press_duration": @(400),
             @"button_scale": @(100),
+            @"modern_buttons": @YES,
             @"mouse_scale": @(100),
             @"mouse_speed": @(100),
             @"virtmouse_enable": @NO,
