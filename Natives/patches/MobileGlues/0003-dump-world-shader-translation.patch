@@ -1,5 +1,5 @@
 diff --git a/MobileGlues-cpp/gl/shader.cpp b/MobileGlues-cpp/gl/shader.cpp
-index 0e3613d..1e0461c 100644
+index 12c66a0..5a1686b 100644
 --- a/MobileGlues-cpp/gl/shader.cpp
 +++ b/MobileGlues-cpp/gl/shader.cpp
 @@ -6,6 +6,8 @@
@@ -11,7 +11,25 @@ index 0e3613d..1e0461c 100644
  #include "shader.h"
  
  #include <GL/gl.h>
-@@ -114,9 +116,39 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
+@@ -74,6 +76,17 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
+         }
+     }
+ 
++    {
++        // Amethyst diagnostics: the GLSL Minecraft hands us, before any translation.
++        static int input_dumps = 0;
++        if (input_dumps < 2 && glsl_src.find("fog_cylindrical_distance") != std::string::npos) {
++            input_dumps++;
++            printf("[AmethystShaderDump] input GLSL of shader %u:\n%s\n[AmethystShaderDump] end input\n", shader,
++                   glsl_src.c_str());
++            fflush(stdout);
++        }
++    }
++
+     bool is_sampler_buffer_emulated = hardware->emulate_texture_buffer && check_if_sampler_buffer_used(glsl_src);
+ 
+     if (is_direct_shader(glsl_src.c_str())) {
+@@ -110,9 +123,39 @@ void glShaderSource(GLuint shader, GLsizei count, const GLchar* const* string, c
      CHECK_GL_ERROR
  }
  
