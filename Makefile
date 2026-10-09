@@ -314,13 +314,22 @@ jre: native
 dep_mg:
 	echo '[Amethyst v$(VERSION)] dep_mg - start'
 	# Apply Amethyst's MobileGlues patches (skipped if already applied)
-	for patch in $(SOURCEDIR)/Natives/patches/MobileGlues/*.patch; do \
-		if git -C $(SOURCEDIR)/Natives/external/MobileGlues apply --reverse --check "$$patch" 2>/dev/null; then \
-			echo "Already applied: $$patch"; \
-		else \
-			git -C $(SOURCEDIR)/Natives/external/MobileGlues apply "$$patch" || exit 1; \
-		fi; \
-	done
+	# dep_mg can run more than once per build; adjacent patches break the
+	# per-patch reverse check, so remember which patch set was applied.
+	stamp=$(SOURCEDIR)/Natives/external/MobileGlues/.amethyst-patches; \
+	sum=$$(cat $(SOURCEDIR)/Natives/patches/MobileGlues/*.patch | shasum | cut -d' ' -f1); \
+	if [ "$$(cat $$stamp 2>/dev/null)" = "$$sum" ]; then \
+		echo "MobileGlues patches already applied"; \
+	else \
+		for patch in $(SOURCEDIR)/Natives/patches/MobileGlues/*.patch; do \
+			if git -C $(SOURCEDIR)/Natives/external/MobileGlues apply --reverse --check "$$patch" 2>/dev/null; then \
+				echo "Already applied: $$patch"; \
+			else \
+				git -C $(SOURCEDIR)/Natives/external/MobileGlues apply "$$patch" || exit 1; \
+			fi; \
+		done; \
+		echo "$$sum" > $$stamp; \
+	fi
 	# glslang null-deref/out-of-bounds guards in the swizzle l-value check (MC 26.x shaders hit it)
 	for patch in $(SOURCEDIR)/Natives/patches/glslang/*.patch; do \
 		if git -C $(SOURCEDIR)/Natives/external/MobileGlues/MobileGlues-cpp/3rdparty/glslang apply --reverse --check "$$patch" 2>/dev/null; then \
