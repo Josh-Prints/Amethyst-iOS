@@ -47,6 +47,38 @@ index 0426186..df55cc6 100644
 +    # out of the export table for the same reason as above.
 +    set_source_files_properties(gl/glsl/glsl_for_es.cpp PROPERTIES COMPILE_OPTIONS "-fvisibility=hidden")
 +endif()
+diff --git a/MobileGlues-cpp/egl/trace.h b/MobileGlues-cpp/egl/trace.h
+index 61cf26f..4768f48 100644
+--- a/MobileGlues-cpp/egl/trace.h
++++ b/MobileGlues-cpp/egl/trace.h
+@@ -10,8 +10,12 @@
+ 
+ #include "../gl/log.h"
+ #include <EGL/egl.h>
+-#include <sys/syscall.h>
+ #include <unistd.h>
++#if defined(__APPLE__)
++#include <pthread.h>
++#else
++#include <sys/syscall.h>
++#endif
+ 
+ // Tracing for the EGL layer.
+ //
+@@ -35,7 +39,13 @@
+ // A thread id, via the syscall rather than gettid(), which bionic only exposes as
+ // a real symbol from API 30 and this library targets 21.
+ static inline int mg_egl_tid(void) {
++#if defined(__APPLE__)
++    uint64_t tid = 0;
++    pthread_threadid_np(nullptr, &tid);
++    return (int)tid;
++#else
+     return (int)syscall(__NR_gettid);
++#endif
+ }
+ 
+ #if MG_EGL_TRACE
 diff --git a/MobileGlues-cpp/gl/framebuffer.cpp b/MobileGlues-cpp/gl/framebuffer.cpp
 index cb2585a..9a4453b 100644
 --- a/MobileGlues-cpp/gl/framebuffer.cpp
