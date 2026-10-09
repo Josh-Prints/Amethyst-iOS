@@ -1,0 +1,62 @@
+diff --git a/MobileGlues-cpp/gl/drawing.cpp b/MobileGlues-cpp/gl/drawing.cpp
+index 9b16a7c..d8e4643 100644
+--- a/MobileGlues-cpp/gl/drawing.cpp
++++ b/MobileGlues-cpp/gl/drawing.cpp
+@@ -125,6 +125,26 @@ void glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei inst
+     CHECK_GL_ERROR
+ }
+ 
++// Minecraft 26.x issues its indexed draws (clouds included) through
++// glDrawElementsInstancedBaseVertex. These used to be passed straight to the
++// driver, skipping the texture-buffer setup, so u_BufferTexWidth stayed 0 and
++// every cloud face read the same cell -- one laggy cloud above the player.
++void glDrawElementsInstancedBaseVertex(GLenum mode, GLsizei count, GLenum type, const void* indices,
++                                       GLsizei instancecount, GLint basevertex) {
++    LOG()
++    prepareForDraw();
++    GLES.glDrawElementsInstancedBaseVertex(mode, count, type, indices, instancecount, basevertex);
++    CHECK_GL_ERROR
++}
++
++void glDrawRangeElementsBaseVertex(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type,
++                                   const void* indices, GLint basevertex) {
++    LOG()
++    prepareForDraw();
++    GLES.glDrawRangeElementsBaseVertex(mode, start, end, count, type, indices, basevertex);
++    CHECK_GL_ERROR
++}
++
+ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices) {
+     LOG()
+     LOG_D("glDrawElements, mode: %d, count: %d, type: %d, indices: %p", mode, count, type, indices)
+diff --git a/MobileGlues-cpp/gl/drawing.h b/MobileGlues-cpp/gl/drawing.h
+index e468646..163fceb 100644
+--- a/MobileGlues-cpp/gl/drawing.h
++++ b/MobileGlues-cpp/gl/drawing.h
+@@ -38,6 +38,11 @@ extern "C"
+                                                   GLsizei primcount);
+     GLAPI GLAPIENTRY void glDrawElementsBaseVertex(GLenum mode, GLsizei count, GLenum type, const void* indices,
+                                                    GLint basevertex);
++    GLAPI GLAPIENTRY void glDrawElementsInstancedBaseVertex(GLenum mode, GLsizei count, GLenum type,
++                                                            const void* indices, GLsizei instancecount,
++                                                            GLint basevertex);
++    GLAPI GLAPIENTRY void glDrawRangeElementsBaseVertex(GLenum mode, GLuint start, GLuint end, GLsizei count,
++                                                        GLenum type, const void* indices, GLint basevertex);
+     GLAPI GLAPIENTRY void glMultiDrawElements(GLenum mode, const GLsizei* count, GLenum type,
+                                               const void* const* indices, GLsizei primcount);
+     GLAPI GLAPIENTRY void glDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices);
+diff --git a/MobileGlues-cpp/gl/gl_native.cpp b/MobileGlues-cpp/gl/gl_native.cpp
+index 0f8e243..9fbe649 100644
+--- a/MobileGlues-cpp/gl/gl_native.cpp
++++ b/MobileGlues-cpp/gl/gl_native.cpp
+@@ -348,8 +348,8 @@ NATIVE_FUNCTION_HEAD(void, glBlendFuncSeparatei, GLuint buf, GLenum srcRGB, GLen
+ NATIVE_FUNCTION_HEAD(void, glColorMaski, GLuint index, GLboolean r, GLboolean g, GLboolean b, GLboolean a) NATIVE_FUNCTION_END_NO_RETURN(void, glColorMaski, index,r,g,b,a)
+ NATIVE_FUNCTION_HEAD(GLboolean, glIsEnabledi, GLenum target, GLuint index) NATIVE_FUNCTION_END(GLboolean, glIsEnabledi, target,index)
+ //NATIVE_FUNCTION_HEAD(void, glDrawElementsBaseVertex, GLenum mode, GLsizei count, GLenum type, const void *indices, GLint basevertex) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawElementsBaseVertex, mode,count,type,indices,basevertex)
+-NATIVE_FUNCTION_HEAD(void, glDrawRangeElementsBaseVertex, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices, GLint basevertex) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawRangeElementsBaseVertex, mode,start,end,count,type,indices,basevertex)
+-NATIVE_FUNCTION_HEAD(void, glDrawElementsInstancedBaseVertex, GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount, GLint basevertex) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawElementsInstancedBaseVertex, mode,count,type,indices,instancecount,basevertex)
++//NATIVE_FUNCTION_HEAD(void, glDrawRangeElementsBaseVertex, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices, GLint basevertex) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawRangeElementsBaseVertex, mode,start,end,count,type,indices,basevertex)
++//NATIVE_FUNCTION_HEAD(void, glDrawElementsInstancedBaseVertex, GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount, GLint basevertex) NATIVE_FUNCTION_END_NO_RETURN(void, glDrawElementsInstancedBaseVertex, mode,count,type,indices,instancecount,basevertex)
+ //NATIVE_FUNCTION_HEAD(void, glFramebufferTexture, GLenum target, GLenum attachment, GLuint texture, GLint level) NATIVE_FUNCTION_END_NO_RETURN(void, glFramebufferTexture, target,attachment,texture,level)
+ NATIVE_FUNCTION_HEAD(void, glPrimitiveBoundingBox, GLfloat minX, GLfloat minY, GLfloat minZ, GLfloat minW, GLfloat maxX, GLfloat maxY, GLfloat maxZ, GLfloat maxW) NATIVE_FUNCTION_END_NO_RETURN(void, glPrimitiveBoundingBox, minX,minY,minZ,minW,maxX,maxY,maxZ,maxW)
+ NATIVE_FUNCTION_HEAD(GLenum, glGetGraphicsResetStatus) NATIVE_FUNCTION_END(GLenum, glGetGraphicsResetStatus)

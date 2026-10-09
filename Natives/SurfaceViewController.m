@@ -880,7 +880,7 @@ static GameSurfaceView* pojavWindow;
         // Focus often hops between two boxes; wait a moment before dismissing.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
             if (self.textInputGeneration != gen || self.gameTextInput) return;
-            if (self.keyboardOpenedByGame && self.inputTextField.isFirstResponder) {
+            if (self.inputTextField.isFirstResponder) {
                 [self.inputTextField resignFirstResponder];
                 self.inputTextField.alpha = 1.0f;
             }
@@ -932,6 +932,18 @@ static GameSurfaceView* pojavWindow;
     CallbackBridge_nativeSendKey(GLFW_KEY_ENTER, 0, 1, 0);
     CallbackBridge_nativeSendKey(GLFW_KEY_ENTER, 0, 0, 0);
     textField.text = @" ";
+    // Emerald: Enter sends the chat message and closes chat, so put the keyboard
+    // away too. If the game still wants text afterwards (e.g. the next line of a
+    // sign), leave it open.
+    if (self.autoKeyboard) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            if (self.gameTextInput) return;
+            if (self.inputTextField.isFirstResponder) {
+                [self.inputTextField resignFirstResponder];
+                self.inputTextField.alpha = 1.0f;
+            }
+        });
+    }
     return YES;
 }
 
