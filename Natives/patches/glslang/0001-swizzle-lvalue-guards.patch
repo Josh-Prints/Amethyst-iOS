@@ -1,0 +1,35 @@
+diff --git a/glslang/MachineIndependent/ParseHelper.cpp b/glslang/MachineIndependent/ParseHelper.cpp
+index 33eecf6e..ba3b072f 100644
+--- a/glslang/MachineIndependent/ParseHelper.cpp
++++ b/glslang/MachineIndependent/ParseHelper.cpp
+@@ -4079,9 +4079,29 @@ bool TParseContext::lValueErrorCheck(const TSourceLoc& loc, const char* op, TInt
+                 TIntermTyped* rightNode = binaryNode->getRight();
+                 TIntermAggregate *aggrNode = rightNode->getAsAggregate();
+ 
++                // A swizzle whose component list is not a constant aggregate is not a
++                // valid l-value; report it instead of dereferencing a null node.
++                if (aggrNode == nullptr) {
++                    error(loc, " l-value of swizzle must have a constant component list", op, "", "");
++
++                    return true;
++                }
++
+                 for (TIntermSequence::iterator p = aggrNode->getSequence().begin();
+                                                p != aggrNode->getSequence().end(); p++) {
+-                    int value = (*p)->getAsTyped()->getAsConstantUnion()->getConstArray()[0].getIConst();
++                    TIntermTyped* component = (*p)->getAsTyped();
++                    TIntermConstantUnion* constComponent = component ? component->getAsConstantUnion() : nullptr;
++                    if (constComponent == nullptr) {
++                        error(loc, " l-value of swizzle must have constant components", op, "", "");
++
++                        return true;
++                    }
++                    int value = constComponent->getConstArray()[0].getIConst();
++                    if (value < 0 || value >= 4) {
++                        error(loc, " l-value of swizzle has out-of-range component", op, "", "");
++
++                        return true;
++                    }
+                     offset[value]++;
+                     if (offset[value] > 1) {
+                         error(loc, " l-value of swizzle cannot have duplicate components", op, "", "");

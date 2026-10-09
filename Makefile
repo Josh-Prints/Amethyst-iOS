@@ -321,6 +321,14 @@ dep_mg:
 			git -C $(SOURCEDIR)/Natives/external/MobileGlues apply "$$patch" || exit 1; \
 		fi; \
 	done
+	# glslang null-deref/out-of-bounds guards in the swizzle l-value check (MC 26.x shaders hit it)
+	for patch in $(SOURCEDIR)/Natives/patches/glslang/*.patch; do \
+		if git -C $(SOURCEDIR)/Natives/external/MobileGlues/MobileGlues-cpp/3rdparty/glslang apply --reverse --check "$$patch" 2>/dev/null; then \
+			echo "Already applied: $$patch"; \
+		else \
+			git -C $(SOURCEDIR)/Natives/external/MobileGlues/MobileGlues-cpp/3rdparty/glslang apply "$$patch" || exit 1; \
+		fi; \
+	done
 	mkdir -p $(WORKINGDIR)/mobileglues
 	cd $(WORKINGDIR)/mobileglues && cmake \
 		-DMACOS="1" \
