@@ -39,7 +39,7 @@ static GameSurfaceView* pojavWindow;
 
 @property(nonatomic) TrackedTextField *inputTextField;
 @property(nonatomic) NSMutableArray* swipeableButtons;
-@property(nonatomic) NSMapTable<UIGestureRecognizer *, NSMutableDictionary *> *swipeStates;
+@property(nonatomic) NSMapTable<UIGestureRecognizer *, NSMutableArray<ControlButton *> *> *swipeStates;
 @property(nonatomic) UITouch *primaryTouch, *hotbarTouch;
 
 @property(nonatomic) UILongPressGestureRecognizer* longPressGesture, *longPressTwoGesture;
@@ -1046,32 +1046,31 @@ static GameSurfaceView* pojavWindow;
     button.highlighted = pressed;
 }
 
-// One finger sliding across the controls. The button the finger started on
-// stays held until the finger lifts; any other button is held only while the
-// finger is on it (hold crouch, slide up onto forward: you walk crouched; hold
-// forward, slide onto jump: you walk and jump).
+// One finger sliding across the controls. Every button the finger slides onto
+// joins the hold, so any number of them can be held at once (hold crouch, slide
+// onto forward, then jump: you sneak forward and jump). Sliding back onto a
+// button already held releases everything added after it; lifting the finger
+// releases them all.
 - (void)executebtn_swipe:(UIPanGestureRecognizer *)sender
 {
-    NSMutableDictionary *state = [self.swipeStates objectForKey:sender];
-    if (sender.state == UIGestureRecognizerStateBegan || state == nil) {
+    NSMutableArray<ControlButton *> *path = [self.swipeStates objectForKey:sender];
+    if (sender.state == UIGestureRecognizerStateBegan || path == nil) {
         // The button already got its touch-down; the pan just took the touch over.
         ControlButton *origin = (ControlButton *)sender.view;
-        state = [@{@"current": origin} mutableCopy];
-        [self.swipeStates setObject:state forKey:sender];
+        path = [NSMutableArray arrayWithObject:origin];
+        [self.swipeStates setObject:path forKey:sender];
         dispatch_async(dispatch_get_main_queue(), ^{
             // UIKit un-highlights the button when the pan cancels its tracking.
             if ([self.swipeStates objectForKey:sender]) origin.highlighted = YES;
         });
     }
 
-    ControlButton *current = state[@"current"];
-    ControlButton *latched = state[@"latched"];
-
     if (sender.state == UIGestureRecognizerStateCancelled ||
         sender.state == UIGestureRecognizerStateEnded ||
         sender.state == UIGestureRecognizerStateFailed) {
-        if (current) [self setSwipeButton:current pressed:NO];
-        if (latched && latched != current) [self setSwipeButton:latched pressed:NO];
+        for (ControlButton *button in path.reverseObjectEnumerator) {
+            [self setSwipeButton:button pressed:NO];
+        }
         [self.swipeStates removeObjectForKey:sender];
         return;
     }
@@ -1087,26 +1086,23 @@ static GameSurfaceView* pojavWindow;
             break;
         }
     }
-    if (hit == nil || hit == current) return;
+    if (hit == nil || hit == path.lastObject) return;
 
-    if (hit == latched) {
-        // Back onto the starting button: just stop pressing the other one.
-        if (current != latched) [self setSwipeButton:current pressed:NO];
-        state[@"current"] = latched;
+    NSUInteger at = [path indexOfObjectIdenticalTo:hit];
+    if (at != NSNotFound) {
+        // Retracing: let go of everything added after this button.
+        while (path.count > at + 1) {
+            [self setSwipeButton:path.lastObject pressed:NO];
+            [path removeLastObject];
+        }
         return;
     }
 
-    if (latched == nil && current == sender.view) {
-        state[@"latched"] = current;
-        latched = current;
-    } else if (current != latched) {
-        [self setSwipeButton:current pressed:NO];
-    }
     if(self.shouldTriggerHaptic) {
         [self.lightHaptic impactOccurred];
     }
+    [path addObject:hit];
     [self setSwipeButton:hit pressed:YES];
-    state[@"current"] = hit;
 }
 
 - (void)executebtn_up:(ControlButton *)sender isOutside:(BOOL)isOutside
