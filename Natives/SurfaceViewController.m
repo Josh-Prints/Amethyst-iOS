@@ -1096,7 +1096,10 @@ static BOOL ButtonIsHoldModifier(ControlButton *button) {
     CGPoint location = [sender locationInView:self.ctrlView];
     ControlButton *hit = nil;
     for (ControlButton *button in self.swipeableButtons) {
-        if (!button.hidden && CGRectContainsPoint(button.frame, location)) {
+        // Only switch once the finger is well inside the next button; buttons sit
+        // 2pt apart, so edge contact alone made them flicker.
+        CGRect zone = CGRectInset(button.frame, button.frame.size.width * 0.2, button.frame.size.height * 0.2);
+        if (!button.hidden && CGRectContainsPoint(zone, location)) {
             hit = button;
             break;
         }
