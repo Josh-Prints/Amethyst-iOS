@@ -220,7 +220,7 @@
 "preference.title.finger_scroll" = "Drag to scroll menus";
 "preference.detail.finger_scroll" = "Drag with one finger to scroll lists such as settings, worlds and servers";
 "preference.title.auto_keyboard" = "Auto keyboard";
-"preference.detail.auto_keyboard" = "Open the keyboard when a text box (chat, signs, search) is selected and move the game above it. Fully automatic on 26.1 and newer";
+"preference.detail.auto_keyboard" = "Open the keyboard when you open the chat and move the game above it. Works on 26.1 and newer";
 "preference.title.modern_buttons" = "Bedrock-style buttons";
 "preference.detail.modern_buttons" = "Rounded on-screen buttons with icons instead of text labels";
 "preference.detail.button_scale" = "Upscale them if buttons are too small, usually needed for iPad users.";
