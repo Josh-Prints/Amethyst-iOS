@@ -482,15 +482,10 @@ static GameSurfaceView* pojavWindow;
         [button addTarget:self action:@selector(executebtn_up_inside:) forControlEvents:UIControlEventTouchUpInside];
         [button addTarget:self action:@selector(executebtn_up_outside:) forControlEvents:UIControlEventTouchUpOutside];
 
-        // Emerald: every plain key button can be slid across (Bedrock-style),
-        // not only ones marked swipeable. Toggles and special buttons (keyboard,
-        // menu, mouse...) keep their tap behaviour.
+        // Emerald: every button can be slid from and onto (Bedrock-style), not
+        // only ones marked swipeable. Toggle buttons keep their tap behaviour.
         if (![button.properties[@"isToggle"] boolValue]) {
-            BOOL plainKeys = YES;
-            for (int i = 0; i < 4; i++) {
-                plainKeys &= [button.properties[@"keycodes"][i] intValue] >= 0;
-            }
-            isSwipeable |= plainKeys;
+            isSwipeable = YES;
         }
         if (isSwipeable) {
             UIPanGestureRecognizer *panRecognizerButton = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(executebtn_swipe:)];
@@ -1046,27 +1041,15 @@ static GameSurfaceView* pojavWindow;
     }
 }
 
-// Sneak/sprint style keys: sliding off one of these keeps it held.
-static BOOL ButtonIsHoldModifier(ControlButton *button) {
-    for (int i = 0; i < 4; i++) {
-        int keycode = [button.properties[@"keycodes"][i] intValue];
-        if (keycode == GLFW_KEY_LEFT_SHIFT || keycode == GLFW_KEY_RIGHT_SHIFT ||
-            keycode == GLFW_KEY_LEFT_CONTROL || keycode == GLFW_KEY_RIGHT_CONTROL) {
-            return YES;
-        }
-    }
-    return NO;
-}
-
 - (void)setSwipeButton:(ControlButton *)button pressed:(BOOL)pressed {
     [self executebtn:button withAction:pressed ? ACTION_DOWN : ACTION_UP];
     button.highlighted = pressed;
 }
 
-// One finger sliding across the controls. The button under the finger is held;
-// moving onto another button releases the previous one and presses the new
-// one, except that a sneak/sprint button the finger started on stays held until
-// the finger lifts (hold crouch, slide up onto forward: you walk crouched).
+// One finger sliding across the controls. The button the finger started on
+// stays held until the finger lifts; any other button is held only while the
+// finger is on it (hold crouch, slide up onto forward: you walk crouched; hold
+// forward, slide onto jump: you walk and jump).
 - (void)executebtn_swipe:(UIPanGestureRecognizer *)sender
 {
     NSMutableDictionary *state = [self.swipeStates objectForKey:sender];
@@ -1107,13 +1090,13 @@ static BOOL ButtonIsHoldModifier(ControlButton *button) {
     if (hit == nil || hit == current) return;
 
     if (hit == latched) {
-        // Back onto the held modifier: just stop pressing the other button.
+        // Back onto the starting button: just stop pressing the other one.
         if (current != latched) [self setSwipeButton:current pressed:NO];
         state[@"current"] = latched;
         return;
     }
 
-    if (latched == nil && current == sender.view && ButtonIsHoldModifier(current)) {
+    if (latched == nil && current == sender.view) {
         state[@"latched"] = current;
         latched = current;
     } else if (current != latched) {
