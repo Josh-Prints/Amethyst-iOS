@@ -39,7 +39,7 @@ static GameSurfaceView* pojavWindow;
 
 @property(nonatomic) TrackedTextField *inputTextField;
 @property(nonatomic) NSMutableArray* swipeableButtons;
-@property(nonatomic) ControlButton* swipingButton;
+@property(nonatomic) NSMapTable<UIGestureRecognizer *, NSMutableDictionary *> *swipeStates;
 @property(nonatomic) UITouch *primaryTouch, *hotbarTouch;
 
 @property(nonatomic) UILongPressGestureRecognizer* longPressGesture, *longPressTwoGesture;
@@ -214,6 +214,7 @@ static GameSurfaceView* pojavWindow;
     };
 
     self.swipeableButtons = [[NSMutableArray alloc] init];
+    self.swipeStates = [NSMapTable weakToStrongObjectsMapTable];
 
     [KeyboardInput initKeycodeTable];
     self.textAreaTop = self.textAreaBottom = -1;
@@ -481,6 +482,16 @@ static GameSurfaceView* pojavWindow;
         [button addTarget:self action:@selector(executebtn_up_inside:) forControlEvents:UIControlEventTouchUpInside];
         [button addTarget:self action:@selector(executebtn_up_outside:) forControlEvents:UIControlEventTouchUpOutside];
 
+        // Emerald: every plain key button can be slid across (Bedrock-style),
+        // not only ones marked swipeable. Toggles and special buttons (keyboard,
+        // menu, mouse...) keep their tap behaviour.
+        if (![button.properties[@"isToggle"] boolValue]) {
+            BOOL plainKeys = YES;
+            for (int i = 0; i < 4; i++) {
+                plainKeys &= [button.properties[@"keycodes"][i] intValue] >= 0;
+            }
+            isSwipeable |= plainKeys;
+        }
         if (isSwipeable) {
             UIPanGestureRecognizer *panRecognizerButton = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(executebtn_swipe:)];
             panRecognizerButton.delegate = self;
@@ -1033,39 +1044,93 @@ static GameSurfaceView* pojavWindow;
     if (sender.savedBackgroundColor == nil) {
         [self executebtn:sender withAction:ACTION_DOWN];
     }
-    if ([self.swipeableButtons containsObject:sender]) {
-        self.swipingButton = sender;
-    }
 }
 
+// Sneak/sprint style keys: sliding off one of these keeps it held.
+static BOOL ButtonIsHoldModifier(ControlButton *button) {
+    for (int i = 0; i < 4; i++) {
+        int keycode = [button.properties[@"keycodes"][i] intValue];
+        if (keycode == GLFW_KEY_LEFT_SHIFT || keycode == GLFW_KEY_RIGHT_SHIFT ||
+            keycode == GLFW_KEY_LEFT_CONTROL || keycode == GLFW_KEY_RIGHT_CONTROL) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (void)setSwipeButton:(ControlButton *)button pressed:(BOOL)pressed {
+    [self executebtn:button withAction:pressed ? ACTION_DOWN : ACTION_UP];
+    button.highlighted = pressed;
+}
+
+// One finger sliding across the controls. The button under the finger is held;
+// moving onto another button releases the previous one and presses the new
+// one, except that a sneak/sprint button the finger started on stays held until
+// the finger lifts (hold crouch, slide up onto forward: you walk crouched).
 - (void)executebtn_swipe:(UIPanGestureRecognizer *)sender
 {
-    if (sender.state == UIGestureRecognizerStateCancelled || sender.state == UIGestureRecognizerStateEnded) {
-        [self executebtn_up:self.swipingButton isOutside:NO];
+    NSMutableDictionary *state = [self.swipeStates objectForKey:sender];
+    if (sender.state == UIGestureRecognizerStateBegan || state == nil) {
+        // The button already got its touch-down; the pan just took the touch over.
+        ControlButton *origin = (ControlButton *)sender.view;
+        state = [@{@"current": origin} mutableCopy];
+        [self.swipeStates setObject:state forKey:sender];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // UIKit un-highlights the button when the pan cancels its tracking.
+            if ([self.swipeStates objectForKey:sender]) origin.highlighted = YES;
+        });
+    }
+
+    ControlButton *current = state[@"current"];
+    ControlButton *latched = state[@"latched"];
+
+    if (sender.state == UIGestureRecognizerStateCancelled ||
+        sender.state == UIGestureRecognizerStateEnded ||
+        sender.state == UIGestureRecognizerStateFailed) {
+        if (current) [self setSwipeButton:current pressed:NO];
+        if (latched && latched != current) [self setSwipeButton:latched pressed:NO];
+        [self.swipeStates removeObjectForKey:sender];
         return;
     }
+
     CGPoint location = [sender locationInView:self.ctrlView];
+    ControlButton *hit = nil;
     for (ControlButton *button in self.swipeableButtons) {
-        if (CGRectContainsPoint(button.frame, location) && (ControlButton *)self.swipingButton != button) {
-            [self executebtn_up:self.swipingButton isOutside:NO];
-            self.swipingButton = (ControlButton *)button;
-            [self executebtn:self.swipingButton withAction:ACTION_DOWN];
+        if (!button.hidden && CGRectContainsPoint(button.frame, location)) {
+            hit = button;
             break;
         }
     }
+    if (hit == nil || hit == current) return;
+
+    if (hit == latched) {
+        // Back onto the held modifier: just stop pressing the other button.
+        if (current != latched) [self setSwipeButton:current pressed:NO];
+        state[@"current"] = latched;
+        return;
+    }
+
+    if (latched == nil && current == sender.view && ButtonIsHoldModifier(current)) {
+        state[@"latched"] = current;
+        latched = current;
+    } else if (current != latched) {
+        [self setSwipeButton:current pressed:NO];
+    }
+    if(self.shouldTriggerHaptic) {
+        [self.lightHaptic impactOccurred];
+    }
+    [self setSwipeButton:hit pressed:YES];
+    state[@"current"] = hit;
 }
 
 - (void)executebtn_up:(ControlButton *)sender isOutside:(BOOL)isOutside
 {
-    if (self.swipingButton == sender) {
-        [self executebtn:self.swipingButton withAction:ACTION_UP];
-        self.swipingButton = nil;
-    } else if (sender.savedBackgroundColor == nil) {
+    if (sender.savedBackgroundColor == nil) {
         [self executebtn:sender withAction:ACTION_UP];
         return;
     }
 
-    if (isOutside || sender.savedBackgroundColor == nil) {
+    if (isOutside) {
         return;
     }
 
